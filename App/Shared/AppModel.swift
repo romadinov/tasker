@@ -60,6 +60,7 @@ final class AppModel {
     var sidebar: SidebarItem? = .inbox {
         didSet {
             guard oldValue != sidebar else { return }
+            inboxKept = []
             pendingSelection = [] // only selections made after this point survive the switch
             // Deferred: mutating the list's selection while it is handling a sidebar click
             // re-enters the table view delegate.
@@ -76,6 +77,8 @@ final class AppModel {
     @ObservationIgnored private var pendingSelection: Set<String> = []
     var editingID: String?
     var recentlyCompleted: Set<String> = []
+    /// Items filed out of the Inbox this session; like OmniFocus they stay visible there until Clean Up.
+    var inboxKept: Set<String> = []
     var filter: ItemFilter = .remaining
     var tagFilter: ItemFilter = .available
     var searchText = ""
@@ -330,6 +333,36 @@ final class AppModel {
         if let target { expanded.insert(target) }
     }
 
+    /// OmniFocus "Clean Up": hide completed items and items already filed out of the Inbox.
+    func cleanUp() {
+        recentlyCompleted = []
+        inboxKept = []
+        snapshot = store.snapshot()
+    }
+
+    func assignProject(_ ids: [String], _ projectID: String?) {
+        for id in ids where snapshot.info[id]?.isInbox == true && snapshot.tasks[id]?.isProject == false { inboxKept.insert(id) }
+        moveItems(ids, to: projectID)
+    }
+
+    @discardableResult
+    func createProject(named name: String, folder: String? = nil) -> String {
+        var id = ""
+        perform("New Project") { tx in
+            var n = NewTask(title: name); n.isProject = true; n.parent = folder
+            id = tx.createTask(n)
+        }
+        return id
+    }
+
+    @discardableResult
+    func createTag(named name: String) -> String {
+        if let existing = snapshot.tags.values.first(where: { $0.name.compare(name, options: .caseInsensitive) == .orderedSame }) { return existing.id }
+        var id = ""
+        perform("New Tag") { tx in id = tx.createTag(name) }
+        return id
+    }
+
     func toggleExpanded(_ id: String) {
         if expanded.contains(id) { expanded.remove(id) } else { expanded.insert(id) }
     }
@@ -432,7 +465,10 @@ final class AppModel {
         case .inbox:
             var rows: [OutlineRow] = []
             outline(snapshot.inboxIDs, depth: 0, filter: .remaining, into: &rows)
-            return [OutlineSection(id: "inbox", title: "", rows: rows)]
+            let kept = inboxKept.filter { snapshot.tasks[$0] != nil && snapshot.info[$0]?.isInbox == false }
+            var out = [OutlineSection(id: "inbox", title: "", rows: rows)]
+            if !kept.isEmpty { out.append(OutlineSection(id: "filed", title: "Filed — Clean Up to hide", rows: flat(Array(kept).sorted()))) }
+            return out
         case .projects:
             var rows: [OutlineRow] = []
             outline(snapshot.libraryIDs, depth: 0, filter: filter, into: &rows)

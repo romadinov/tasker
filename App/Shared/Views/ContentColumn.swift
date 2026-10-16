@@ -18,6 +18,9 @@ struct ContentColumn: View {
         @Bindable var model = model
         let sections = model.sections()
         VStack(spacing: 0) {
+            #if os(iOS)
+            PerspectiveStrip()
+            #endif
             if model.sidebar == .forecast && model.searchText.isEmpty { ForecastStrip() }
             ScrollViewReader { proxy in
             List(selection: $model.selection) {
@@ -35,6 +38,17 @@ struct ContentColumn: View {
             #if os(macOS)
             .listStyle(.inset(alternatesRowBackgrounds: false))
             .onDeleteCommand { model.deleteItems(Array(model.selection)) }
+            // OmniFocus bare keys: Space completes, F flags.
+            .onKeyPress(.space) {
+                guard model.editingID == nil, !model.selection.isEmpty else { return .ignored }
+                for id in model.selection { model.toggleComplete(id) }
+                return .handled
+            }
+            .onKeyPress("f") {
+                guard model.editingID == nil, !model.selection.isEmpty else { return .ignored }
+                model.toggleFlag(Array(model.selection))
+                return .handled
+            }
             #else
             .listStyle(.plain)
             .refreshable { await model.sync?.syncNow() }
@@ -47,6 +61,20 @@ struct ContentColumn: View {
             }
             }
         }
+        #if os(iOS)
+        .overlay(alignment: .bottomTrailing) {
+            Button { addAction() } label: {
+                Image(systemName: "plus")
+                    .font(.title2.weight(.semibold))
+                    .foregroundStyle(.white)
+                    .frame(width: 56, height: 56)
+                    .background(Circle().fill(Color.accentColor).shadow(radius: 4, y: 2))
+            }
+            .accessibilityLabel("Add Action")
+            .padding(.trailing, 20)
+            .padding(.bottom, 72)
+        }
+        #endif
         .navigationTitle(title)
         .searchable(text: $model.searchText, placement: .toolbar, prompt: "Search everything")
         .toolbar { toolbar }
@@ -111,7 +139,10 @@ struct ContentColumn: View {
                     Button("New Folder") { model.newFolder() }
                 } label: { Label("New", systemImage: "folder.badge.plus") }
             }
+            #if os(iOS)
+            Button { model.cleanUp() } label: { Label("Clean Up", systemImage: "wand.and.sparkles") }
             Button { addAction() } label: { Label("New Action", systemImage: "plus") }
+            #endif
             #if os(iOS)
             if sizeClass != .compact {
                 Button { model.presentQuickEntry() } label: { Label("Quick Entry", systemImage: "square.and.pencil") }

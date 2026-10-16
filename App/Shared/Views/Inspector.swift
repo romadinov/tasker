@@ -112,9 +112,12 @@ struct TaskInspector: View {
                         }
                         .font(.title3)
                     }
-                    LabeledContent(t.isProject ? "Folder" : "Project") {
-                        Button(locationName(t, s)) { model.moveTargetFor = [id] }
-                            .buttonStyle(.borderless)
+                    if t.isProject {
+                        LabeledContent("Folder") {
+                            Button(locationName(t, s)) { model.moveTargetFor = [id] }.buttonStyle(.borderless)
+                        }
+                    } else {
+                        ProjectPickerRow(task: t)
                     }
                     TagEditor(task: t)
                 }
@@ -201,44 +204,55 @@ struct EstimateRow: View {
     }
 }
 
-struct TagEditor: View {
+struct ProjectPickerRow: View {
     @Environment(AppModel.self) private var model
     let task: TaskItem
-    @State private var newTagName = ""
-    @State private var askingName = false
 
     var body: some View {
         let s = model.snapshot
-        HStack(alignment: .firstTextBaseline) {
-            Text("Tags")
-            Spacer()
-            FlowTags(names: task.tagIDs.compactMap { id in s.tags[id].map { (id, $0.name) } }) { id in
-                model.perform("Remove Tag") { $0.setTag(task.id, id, false) }
-            }
-            Menu {
-                ForEach(s.orderedTags, id: \.tag.id) { entry in
-                    let has = task.tagIDs.contains(entry.tag.id)
-                    Button {
-                        model.perform(has ? "Remove Tag" : "Add Tag") { $0.setTag(task.id, entry.tag.id, !has) }
-                    } label: {
-                        Label(String(repeating: "   ", count: entry.depth) + entry.tag.name, systemImage: has ? "checkmark" : "")
-                    }
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text("Project")
+                Spacer()
+                let path = s.path(of: task.id)
+                Text(path.isEmpty ? "Inbox" : path).foregroundStyle(.secondary).lineLimit(1)
+                if s.info[task.id]?.projectID != nil {
+                    Button { model.assignProject([task.id], nil) } label: { Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary) }
+                        .buttonStyle(.borderless)
+                        .help("Move back to the Inbox")
                 }
-                Divider()
-                Button("New Tag…") { askingName = true }
-            } label: { Image(systemName: "tag.circle") }
-            .menuStyle(.borderlessButton)
-            .fixedSize()
-        }
-        .alert("New Tag", isPresented: $askingName) {
-            TextField("Name", text: $newTagName)
-            Button("Add") {
-                let name = newTagName.trimmingCharacters(in: .whitespaces)
-                guard !name.isEmpty else { return }
-                model.perform("New Tag") { tx in let id = tx.createTag(name); tx.setTag(task.id, id, true) }
-                newTagName = ""
             }
-            Button("Cancel", role: .cancel) {}
+            AutocompleteField(placeholder: "Move to project…", icon: "circle.grid.2x2",
+                              suggestions: { Lookup.projects(model.snapshot, $0) },
+                              createLabel: { "New project “\($0)”" },
+                              onPick: { model.assignProject([task.id], $0.id) },
+                              onCreate: { name in model.assignProject([task.id], model.createProject(named: name)) })
+        }
+    }
+}
+
+struct TagEditor: View {
+    @Environment(AppModel.self) private var model
+    let task: TaskItem
+
+    var body: some View {
+        let s = model.snapshot
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .firstTextBaseline) {
+                Text("Tags")
+                Spacer()
+                FlowTags(names: task.tagIDs.compactMap { id in s.tags[id].map { (id, $0.name) } }) { id in
+                    model.perform("Remove Tag") { $0.setTag(task.id, id, false) }
+                }
+            }
+            AutocompleteField(placeholder: "Add tag…", icon: "tag",
+                              suggestions: { Lookup.tags(model.snapshot, $0, excluding: Set(task.tagIDs)) },
+                              createLabel: { "New tag “\($0)”" },
+                              onPick: { tag in model.perform("Add Tag") { $0.setTag(task.id, tag.id, true) } },
+                              onCreate: { name in
+                                  let tag = model.createTag(named: name)
+                                  model.perform("Add Tag") { $0.setTag(task.id, tag, true) }
+                              })
         }
     }
 }
@@ -450,9 +464,9 @@ struct MoveSheet: View {
                         }
                     }
                 } else {
-                    Button { model.moveItems(ids, to: nil); dismiss() } label: { Label("Inbox", systemImage: "tray") }
+                    Button { model.assignProject(ids, nil); dismiss() } label: { Label("Inbox", systemImage: "tray") }
                     ForEach(s.orderedProjects.filter { s.info[$0.id]?.isRemaining == true && matches($0.title + " " + s.path(of: $0.id)) }) { p in
-                        Button { model.moveItems(ids, to: p.id); dismiss() } label: {
+                        Button { model.assignProject(ids, p.id); dismiss() } label: {
                             VStack(alignment: .leading) {
                                 Label(p.title, systemImage: "circle.grid.2x2")
                                 let path = s.path(of: p.id)

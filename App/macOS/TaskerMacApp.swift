@@ -12,6 +12,7 @@ struct TaskerMacApp: App {
                 .environment(AppModel.shared)
                 .frame(minWidth: 900, minHeight: 560)
         }
+        .defaultSize(width: 1400, height: 860)
         .commands { TaskerCommands() }
 
         Settings {
@@ -80,8 +81,11 @@ struct TaskerCommands: Commands {
         }
         CommandMenu("Item") {
             let sel = Array(model.selection)
-            Button("Complete") { for id in sel { model.toggleComplete(id) } }.keyboardShortcut("k").disabled(sel.isEmpty)
-            Button("Flag") { model.toggleFlag(sel) }.keyboardShortcut("l", modifiers: [.command, .shift]).disabled(sel.isEmpty)
+            Button("Clean Up") { model.cleanUp() }.keyboardShortcut("k")
+            // Space (and F to flag) are handled by the focused list, not as menu key equivalents,
+            // which would also fire while typing in text fields.
+            Button("Complete  (Space)") { for id in sel { model.toggleComplete(id) } }.disabled(sel.isEmpty)
+            Button("Flag  (F)") { model.toggleFlag(sel) }.keyboardShortcut("l", modifiers: [.command, .shift]).disabled(sel.isEmpty)
             Button("Edit Title") { model.editingID = sel.first }.keyboardShortcut(.return, modifiers: []).disabled(sel.count != 1 || model.editingID != nil)
             Divider()
             Button("Indent") { model.indent(sel) }.keyboardShortcut("]").disabled(sel.isEmpty)
@@ -105,9 +109,9 @@ struct TaskerCommands: Commands {
             Button("Tags") { model.sidebar = .tags }.keyboardShortcut("3")
             Button("Forecast") { model.sidebar = .forecast }.keyboardShortcut("4")
             Button("Flagged") { model.sidebar = .flagged }.keyboardShortcut("5")
-            Button("Review") { model.sidebar = .review }.keyboardShortcut("6")
-            ForEach(Array(model.snapshot.perspectives.prefix(3).enumerated()), id: \.element.id) { i, p in
-                Button(p.name) { model.sidebar = .perspective(p.id) }.keyboardShortcut(KeyEquivalent(Character("\(7 + i)")))
+            Button("Review") { model.sidebar = .review }.keyboardShortcut("7")
+            ForEach(Array(model.snapshot.perspectives.prefix(2).enumerated()), id: \.element.id) { i, p in
+                Button(p.name) { model.sidebar = .perspective(p.id) }.keyboardShortcut(KeyEquivalent(Character("\(8 + i)")))
             }
             Divider()
             Button("Sync Status…") { model.showSyncStatus = true }.keyboardShortcut("s", modifiers: [.command, .control])

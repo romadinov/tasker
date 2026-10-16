@@ -19,6 +19,9 @@ struct RootView: View {
             InspectorColumn()
                 .navigationSplitViewColumnWidth(min: 280, ideal: 340)
         }
+        #if os(macOS)
+        .toolbar { PerspectiveToolbar(model: model) }
+        #endif
         .onAppear { model.undoManager = undoManager }
         .onChange(of: undoManager) { _, new in model.undoManager = new }
         .onChange(of: scenePhase) { _, phase in if phase == .active { model.becameActive() } }

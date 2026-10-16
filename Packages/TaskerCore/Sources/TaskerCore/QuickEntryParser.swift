@@ -14,6 +14,7 @@ public struct QuickEntryParser {
         public var dueDate: Date?
         public var plannedDate: Date?
         public var estimatedMinutes: Int?
+        public init(title: String) { self.title = title }
     }
 
     public let snapshot: Snapshot

@@ -33,6 +33,11 @@ enum DebugSnapshots {
             steps.append(("perspective-\(p.name)", { model.sidebar = .perspective(p.id) }))
         }
         steps.append(("edit-perspective", { model.editingPerspective = model.snapshot.perspectives.first }))
+        steps.append(("inspector-autocomplete", {
+            model.editingPerspective = nil
+            model.sidebar = .inbox
+            if let id = model.snapshot.inboxIDs.first { model.selection = [id] }
+        }))
         steps.append(("quick-entry", { model.editingPerspective = nil; QuickEntryController.shared.show(capture: .init(title: "Call Anna #pho ::home due:fri", note: "")) }))
 
         func run(_ i: Int) {
