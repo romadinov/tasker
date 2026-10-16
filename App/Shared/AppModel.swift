@@ -339,6 +339,25 @@ final class AppModel {
     struct Capture: Equatable {
         var title = ""
         var note = ""
+        var projectID: String?
+        var tagIDs: [String] = []
+        var flagged = false
+        var dueDate: Date?
+    }
+
+    var quickEntryCapture = Capture()
+
+    /// Opens Quick Entry pre-filled for the current context (used for "+" on compact screens,
+    /// where inline row editing would fight with navigation).
+    func presentQuickEntry() {
+        var c = Capture()
+        if let s = selection.first, selection.count == 1, let t = snapshot.tasks[s] {
+            c.projectID = t.isProject ? s : snapshot.info[s]?.projectID
+        }
+        if sidebar == .flagged { c.flagged = true }
+        if sidebar == .forecast { c.dueDate = Calendar.current.date(bySettingHour: 17, minute: 0, second: 0, of: forecastDay) }
+        quickEntryCapture = c
+        showQuickEntry = true
     }
 
     @discardableResult

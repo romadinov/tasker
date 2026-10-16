@@ -3,6 +3,9 @@ import TaskerCore
 
 struct ContentColumn: View {
     @Environment(AppModel.self) private var model
+    #if os(iOS)
+    @Environment(\.horizontalSizeClass) private var sizeClass
+    #endif
 
     var title: String {
         switch model.sidebar ?? .inbox {
@@ -16,6 +19,7 @@ struct ContentColumn: View {
         let sections = model.sections()
         VStack(spacing: 0) {
             if model.sidebar == .forecast && model.searchText.isEmpty { ForecastStrip() }
+            ScrollViewReader { proxy in
             List(selection: $model.selection) {
                 ForEach(sections) { section in
                     if section.title.isEmpty {
@@ -38,10 +42,25 @@ struct ContentColumn: View {
             .contextMenu(forSelectionType: String.self) { ids in
                 ItemContextMenu(ids: Array(ids))
             }
+            .onChange(of: model.editingID) { _, id in
+                if let id { withAnimation { proxy.scrollTo(id, anchor: .center) } }
+            }
+            }
         }
         .navigationTitle(title)
         .searchable(text: $model.searchText, placement: .toolbar, prompt: "Search everything")
         .toolbar { toolbar }
+        #if DEBUG
+        .task { DebugHooks.run(model) { addAction() } }
+        #endif
+    }
+
+    /// The toolbar "+" (and the debug hook) go through here.
+    func addAction() {
+        #if os(iOS)
+        if sizeClass == .compact { model.presentQuickEntry(); return }
+        #endif
+        model.newTask()
     }
 
     @ViewBuilder
@@ -49,7 +68,7 @@ struct ContentColumn: View {
         ForEach(rows) { row in
             switch row.kind {
             case .folder: FolderRow(row: row).tag(row.id)
-            case .project, .task: TaskRow(row: row).tag(row.id)
+            case .project, .task: TaskRow(row: row).tag(row.id).id(row.id)
             }
         }
     }
@@ -92,9 +111,11 @@ struct ContentColumn: View {
                     Button("New Folder") { model.newFolder() }
                 } label: { Label("New", systemImage: "folder.badge.plus") }
             }
-            Button { model.newTask() } label: { Label("New Action", systemImage: "plus") }
+            Button { addAction() } label: { Label("New Action", systemImage: "plus") }
             #if os(iOS)
-            Button { model.showQuickEntry = true } label: { Label("Quick Entry", systemImage: "square.and.pencil") }
+            if sizeClass != .compact {
+                Button { model.presentQuickEntry() } label: { Label("Quick Entry", systemImage: "square.and.pencil") }
+            }
             #endif
         }
     }

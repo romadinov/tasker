@@ -15,6 +15,7 @@ struct QuickEntryForm: View {
     @State private var deferText = ""
     @State private var dueText = ""
     @State private var savedCount = 0
+    @State private var presetDue: Date?
     @FocusState private var titleFocused: Bool
 
     var body: some View {
@@ -52,71 +53,105 @@ struct QuickEntryForm: View {
                 .foregroundStyle(.secondary)
 
             Divider()
+            #if os(iOS)
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(spacing: 12) { projectMenu(s); tagMenu(s); flagToggle; Spacer() }
+                HStack(spacing: 8) { deferField; dueField }
+            }
+            .textFieldStyle(.roundedBorder)
+            #else
             HStack(spacing: 12) {
-                Menu {
-                    Button("Inbox") { projectID = nil }
-                    Divider()
-                    ForEach(s.orderedProjects.filter { s.info[$0.id]?.isRemaining == true }) { p in
-                        Button(p.title) { projectID = p.id }
-                    }
-                } label: {
-                    Label(projectID.flatMap { s.tasks[$0]?.title } ?? "Inbox", systemImage: projectID == nil ? "tray" : "circle.grid.2x2")
-                }
-                .fixedSize()
-
-                Menu {
-                    ForEach(s.orderedTags, id: \.tag.id) { e in
-                        Button { if tagIDs.contains(e.tag.id) { tagIDs.remove(e.tag.id) } else { tagIDs.insert(e.tag.id) } } label: {
-                            Label(String(repeating: "   ", count: e.depth) + e.tag.name, systemImage: tagIDs.contains(e.tag.id) ? "checkmark" : "")
-                        }
-                    }
-                } label: {
-                    Label(tagIDs.isEmpty ? "Tags" : s.tagNames(Array(tagIDs)).joined(separator: ", "), systemImage: "tag")
-                }
-                .fixedSize()
-
-                Toggle(isOn: $flagged) { Image(systemName: flagged ? "flag.fill" : "flag") }
-                    .toggleStyle(.button)
-                    .tint(Palette.flag)
-
-                TextField("Defer", text: $deferText).frame(width: 80)
-                TextField("Due", text: $dueText).frame(width: 80)
+                projectMenu(s); tagMenu(s); flagToggle
+                deferField.frame(width: 80)
+                dueField.frame(width: 80)
                 Spacer()
             }
             .textFieldStyle(.roundedBorder)
-            #if os(macOS)
             .menuStyle(.borderlessButton)
             #endif
 
             HStack {
                 if savedCount > 0 { Text("Saved \(savedCount)").font(.caption).foregroundStyle(.secondary) }
                 Spacer()
+                #if os(macOS)
                 Button("Cancel", role: .cancel) { onDone() }
                     .keyboardShortcut(.cancelAction)
+                #endif
                 Button("Save & Add Another") { save(keepOpen: true) }
                     .keyboardShortcut(.return, modifiers: [.command, .shift])
+                #if os(macOS)
                 Button("Save") { save(keepOpen: false) }
                     .keyboardShortcut(.return, modifiers: .command)
                     .buttonStyle(.borderedProminent)
+                #endif
             }
+            #if os(iOS)
+            Spacer(minLength: 0)
+            #endif
         }
         .padding(16)
         .onAppear {
             title = capture.title
             note = capture.note
-            if model.sidebar == .flagged { flagged = true }
+            projectID = capture.projectID
+            tagIDs = Set(capture.tagIDs)
+            flagged = capture.flagged || model.sidebar == .flagged
+            presetDue = capture.dueDate
             DispatchQueue.main.async { titleFocused = true }
         }
         #if os(iOS)
-        .navigationTitle("Quick Entry")
+        .navigationTitle("New Action")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .cancellationAction) { Button("Cancel", role: .cancel) { onDone() } }
+            ToolbarItem(placement: .confirmationAction) { Button("Save") { save(keepOpen: false) }.fontWeight(.semibold) }
+        }
         #endif
+    }
+
+    func projectMenu(_ s: Snapshot) -> some View {
+        Menu {
+            Button("Inbox") { projectID = nil }
+            Divider()
+            ForEach(s.orderedProjects.filter { s.info[$0.id]?.isRemaining == true }) { p in
+                Button(p.title) { projectID = p.id }
+            }
+        } label: {
+            Label(projectID.flatMap { s.tasks[$0]?.title } ?? "Inbox", systemImage: projectID == nil ? "tray" : "circle.grid.2x2")
+                .lineLimit(1)
+        }
+        .fixedSize()
+    }
+
+    func tagMenu(_ s: Snapshot) -> some View {
+        Menu {
+            ForEach(s.orderedTags, id: \.tag.id) { e in
+                Button { if tagIDs.contains(e.tag.id) { tagIDs.remove(e.tag.id) } else { tagIDs.insert(e.tag.id) } } label: {
+                    Label(String(repeating: "   ", count: e.depth) + e.tag.name, systemImage: tagIDs.contains(e.tag.id) ? "checkmark" : "")
+                }
+            }
+        } label: {
+            Label(tagIDs.isEmpty ? "Tags" : s.tagNames(Array(tagIDs)).joined(separator: ", "), systemImage: "tag")
+                .lineLimit(1)
+        }
+        .fixedSize()
+    }
+
+    var flagToggle: some View {
+        Toggle(isOn: $flagged) { Image(systemName: flagged ? "flag.fill" : "flag") }
+            .toggleStyle(.button)
+            .tint(Palette.flag)
+    }
+
+    var deferField: some View { TextField("Defer", text: $deferText, prompt: Text("Defer: tom, fri…")) }
+    var dueField: some View {
+        TextField("Due", text: $dueText, prompt: Text(presetDue.map { "Due " + Fmt.relative($0) } ?? "Due: today, +3d…"))
     }
 
     func save(keepOpen: Bool) {
         let parser = QuickEntryParser(snapshot: model.snapshot)
         let id = model.quickAdd(title: title, note: note, projectID: projectID, tagIDs: Array(tagIDs), flagged: flagged,
-                                deferDate: parser.date(deferText, hour: 0), dueDate: parser.date(dueText, hour: 17))
+                                deferDate: parser.date(deferText, hour: 0), dueDate: parser.date(dueText, hour: 17) ?? presetDue)
         guard id != nil else { if !keepOpen { onDone() }; return }
         savedCount += 1
         if keepOpen {
