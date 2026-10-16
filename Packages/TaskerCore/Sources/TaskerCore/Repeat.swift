@@ -50,6 +50,7 @@ public struct RRule: Hashable, Sendable {
     public struct Day: Hashable, Sendable {
         public var ordinal: Int?   // e.g. 2 for "2TU", -1 for "-1FR"
         public var weekday: Int    // Calendar weekday: 1 = Sunday
+        public init(ordinal: Int?, weekday: Int) { self.ordinal = ordinal; self.weekday = weekday }
     }
 
     public var freq: Freq = .daily

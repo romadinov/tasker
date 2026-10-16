@@ -1,0 +1,94 @@
+name: Tasker
+options:
+  bundleIdPrefix: com.romadinov
+  deploymentTarget:
+    iOS: "18.0"
+    macOS: "15.0"
+  createIntermediateGroups: true
+  developmentLanguage: en
+settings:
+  base:
+    DEVELOPMENT_TEAM: SZVSSCJQFN
+    CODE_SIGN_STYLE: Automatic
+    SWIFT_VERSION: "5.0"
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    GENERATE_INFOPLIST_FILE: YES
+    ENABLE_USER_SCRIPT_SANDBOXING: YES
+    ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+packages:
+  TaskerCore:
+    path: Packages/TaskerCore
+targets:
+  TaskerMac:
+    type: application
+    platform: macOS
+    sources:
+      - App/Shared
+      - App/macOS
+      - path: App/Assets.xcassets
+    dependencies:
+      - package: TaskerCore
+    settings:
+      base:
+        PRODUCT_NAME: Tasker
+        PRODUCT_BUNDLE_IDENTIFIER: com.romadinov.tasker.mac
+        INFOPLIST_FILE: App/macOS/Info.plist
+        INFOPLIST_KEY_CFBundleDisplayName: Tasker
+        INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.productivity
+        INFOPLIST_KEY_NSHumanReadableCopyright: ""
+        CODE_SIGN_ENTITLEMENTS: App/macOS/Tasker.entitlements
+        ENABLE_HARDENED_RUNTIME: YES
+        ENABLE_APP_SANDBOX: NO
+  TaskerIOS:
+    type: application
+    platform: iOS
+    sources:
+      - App/Shared
+      - App/iOS
+      - path: App/Assets.xcassets
+    dependencies:
+      - package: TaskerCore
+      - target: TaskerShare
+    settings:
+      base:
+        PRODUCT_NAME: Tasker
+        PRODUCT_BUNDLE_IDENTIFIER: com.romadinov.tasker
+        INFOPLIST_FILE: App/iOS/Info.plist
+        INFOPLIST_KEY_CFBundleDisplayName: Tasker
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad: "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
+        INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone: "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
+        TARGETED_DEVICE_FAMILY: "1,2"
+        CODE_SIGN_ENTITLEMENTS: App/iOS/Tasker.entitlements
+  TaskerShare:
+    type: app-extension
+    platform: iOS
+    sources:
+      - ShareExtension
+    dependencies:
+      - package: TaskerCore
+    settings:
+      base:
+        PRODUCT_NAME: TaskerShare
+        PRODUCT_BUNDLE_IDENTIFIER: com.romadinov.tasker.share
+        INFOPLIST_FILE: ShareExtension/Info.plist
+        INFOPLIST_KEY_CFBundleDisplayName: Tasker
+        CODE_SIGN_ENTITLEMENTS: ShareExtension/TaskerShare.entitlements
+        TARGETED_DEVICE_FAMILY: "1,2"
+        APPLICATION_EXTENSION_API_ONLY: YES
+schemes:
+  TaskerMac:
+    build:
+      targets:
+        TaskerMac: all
+    run:
+      config: Debug
+    test:
+      config: Debug
+  TaskerIOS:
+    build:
+      targets:
+        TaskerIOS: all
+    run:
+      config: Debug

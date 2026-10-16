@@ -52,3 +52,13 @@ import Testing
 enum CRDTStateAccess {
     static func state(of store: Store) -> CRDTState { store.debugState }
 }
+
+/// Developer helper: TASKER_SEED_DB=/path TASKER_OF_EXPORT=/export.json swift test --filter seed
+@Suite struct SeedDatabase {
+    @Test(.enabled(if: ProcessInfo.processInfo.environment["TASKER_SEED_DB"] != nil && ImportTests.exportURL != nil))
+    func seed() throws {
+        let store = try Store(url: URL(fileURLWithPath: ProcessInfo.processInfo.environment["TASKER_SEED_DB"]!))
+        let export = try OmniFocusImport.decode(Data(contentsOf: ImportTests.exportURL!))
+        print(OmniFocusImport.apply(export, to: store))
+    }
+}

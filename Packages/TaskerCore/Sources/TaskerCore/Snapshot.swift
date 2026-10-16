@@ -20,6 +20,7 @@ public struct TaskInfo: Hashable, Sendable {
     public var hasChildren = false
     public var remainingChildren = 0
     public var isInbox: Bool { projectID == nil }
+    public init() {}
 }
 
 public struct ProjectInfo: Hashable, Sendable {
@@ -30,6 +31,7 @@ public struct ProjectInfo: Hashable, Sendable {
     public var remainingCount = 0
     public var folderDropped = false
     public var needsReview = false
+    public init() {}
 }
 
 /// An immutable, fully resolved view of the database at one moment.

@@ -1,0 +1,117 @@
+import AppKit
+import SwiftUI
+import TaskerCore
+
+@main
+struct TaskerMacApp: App {
+    @NSApplicationDelegateAdaptor(MacAppDelegate.self) private var delegate
+
+    var body: some Scene {
+        WindowGroup("Tasker", id: "main") {
+            RootView()
+                .environment(AppModel.shared)
+                .frame(minWidth: 900, minHeight: 560)
+        }
+        .commands { TaskerCommands() }
+
+        Settings {
+            MacSettingsView()
+                .environment(AppModel.shared)
+        }
+    }
+}
+
+final class MacAppDelegate: NSObject, NSApplicationDelegate {
+    let services = ServicesProvider()
+
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        MainActor.assumeIsolated {
+            AppModel.shared.start()
+            HotKeys.apply()
+            #if DEBUG
+            DebugSnapshots.runIfRequested()
+            #endif
+        }
+        NSApp.servicesProvider = services
+        NSUpdateDynamicServices()
+        NSApp.registerForRemoteNotifications()
+    }
+
+    func applicationDidBecomeActive(_ notification: Notification) {
+        MainActor.assumeIsolated { AppModel.shared.becameActive() }
+    }
+
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
+        false // stay running so the global shortcuts keep working
+    }
+
+    func application(_ application: NSApplication, didReceiveRemoteNotification userInfo: [String: Any]) {
+        Task { await AppModel.shared.sync?.syncNow() }
+    }
+}
+
+@MainActor
+enum HotKeys {
+    static let quickEntryKey = "hotkey.quickEntry"
+    static let clipKey = "hotkey.clip"
+
+    static func apply() {
+        HotKeyCenter.shared.register(id: 1, Shortcut.load(quickEntryKey, default: .quickEntryDefault)) {
+            QuickEntryController.shared.show()
+        }
+        HotKeyCenter.shared.register(id: 2, Shortcut.load(clipKey, default: .clipDefault)) {
+            Clipper.clipFrontmost()
+        }
+    }
+}
+
+struct TaskerCommands: Commands {
+    var model: AppModel { AppModel.shared }
+
+    var body: some Commands {
+        CommandGroup(replacing: .newItem) {
+            Button("New Action") { model.newTask() }.keyboardShortcut("n")
+            Button("New Project") { model.newTask(isProject: true) }.keyboardShortcut("n", modifiers: [.command, .shift])
+            Button("New Folder") { model.newFolder() }.keyboardShortcut("n", modifiers: [.command, .option, .shift])
+            Divider()
+            Button("Quick Entry…") { QuickEntryController.shared.show() }.keyboardShortcut("e", modifiers: [.command, .control])
+            Divider()
+            Button("Import from OmniFocus…") { NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil) }
+        }
+        CommandMenu("Item") {
+            let sel = Array(model.selection)
+            Button("Complete") { for id in sel { model.toggleComplete(id) } }.keyboardShortcut("k").disabled(sel.isEmpty)
+            Button("Flag") { model.toggleFlag(sel) }.keyboardShortcut("l", modifiers: [.command, .shift]).disabled(sel.isEmpty)
+            Button("Edit Title") { model.editingID = sel.first }.keyboardShortcut(.return, modifiers: []).disabled(sel.count != 1 || model.editingID != nil)
+            Divider()
+            Button("Indent") { model.indent(sel) }.keyboardShortcut("]").disabled(sel.isEmpty)
+            Button("Outdent") { model.outdent(sel) }.keyboardShortcut("[").disabled(sel.isEmpty)
+            Button("Move Up") { if let id = sel.first { model.moveUpDown(id, up: true) } }.keyboardShortcut(.upArrow, modifiers: [.command, .control]).disabled(sel.count != 1)
+            Button("Move Down") { if let id = sel.first { model.moveUpDown(id, up: false) } }.keyboardShortcut(.downArrow, modifiers: [.command, .control]).disabled(sel.count != 1)
+            Button("Move To…") { model.moveTargetFor = sel }.keyboardShortcut("m", modifiers: [.command, .shift]).disabled(sel.isEmpty)
+            Divider()
+            Button("Defer to Tomorrow") { model.setDate(sel, F.deferDate, QuickEntryParser(snapshot: model.snapshot).date("tomorrow", hour: 0)) }
+                .keyboardShortcut("d", modifiers: [.command, .control]).disabled(sel.isEmpty)
+            Button("Due Today") { model.setDate(sel, F.dueDate, QuickEntryParser(snapshot: model.snapshot).date("today", hour: 17)) }
+                .keyboardShortcut("t", modifiers: [.command, .control]).disabled(sel.isEmpty)
+            Button("Mark Reviewed") {
+                model.perform("Mark Reviewed") { tx in for id in sel where tx.base.tasks[id]?.isProject == true { tx.markReviewed(id) } }
+                model.recentlyCompleted.formUnion(sel)
+            }.keyboardShortcut("r", modifiers: [.command, .shift]).disabled(sel.isEmpty)
+        }
+        CommandGroup(after: .sidebar) {
+            Button("Inbox") { model.sidebar = .inbox }.keyboardShortcut("1")
+            Button("Projects") { model.sidebar = .projects }.keyboardShortcut("2")
+            Button("Tags") { model.sidebar = .tags }.keyboardShortcut("3")
+            Button("Forecast") { model.sidebar = .forecast }.keyboardShortcut("4")
+            Button("Flagged") { model.sidebar = .flagged }.keyboardShortcut("5")
+            Button("Review") { model.sidebar = .review }.keyboardShortcut("6")
+            ForEach(Array(model.snapshot.perspectives.prefix(3).enumerated()), id: \.element.id) { i, p in
+                Button(p.name) { model.sidebar = .perspective(p.id) }.keyboardShortcut(KeyEquivalent(Character("\(7 + i)")))
+            }
+            Divider()
+            Button("Sync Status…") { model.showSyncStatus = true }.keyboardShortcut("s", modifiers: [.command, .control])
+            Button("Sync Now") { Task { await model.sync?.syncNow() } }.keyboardShortcut("s", modifiers: [.command, .option])
+        }
+    }
+}

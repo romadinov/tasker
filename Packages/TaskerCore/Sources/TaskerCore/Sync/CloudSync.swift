@@ -25,6 +25,7 @@ public struct SyncStatus: Sendable, Equatable {
     public var lastError: String?
     public var lastRepair: Date?
     public var events: [String] = []
+    public init() {}
 }
 
 /// CloudKit transport for the op log, built on CKSyncEngine.
