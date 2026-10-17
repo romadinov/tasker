@@ -10,7 +10,8 @@ struct TaskRow: View {
         if let t = s.tasks[row.id] {
             let i = s.info[row.id] ?? TaskInfo()
             HStack(alignment: .firstTextBaseline, spacing: 8) {
-                if row.depth > 0 || row.hasChildren || row.kind == .project || !row.showContext {
+                // Keep the disclosure column in the Inbox for filed rows too, so they don't shift sideways.
+                if row.depth > 0 || row.hasChildren || row.kind == .project || !row.showContext || model.sidebar == .inbox {
                     Disclosure(row: row).alignmentGuide(.firstTextBaseline) { $0[VerticalAlignment.center] + 4 }
                 }
                 if t.isProject {

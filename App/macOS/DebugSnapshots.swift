@@ -62,6 +62,23 @@ enum DebugSnapshots {
             NSLog("TASKER-FOCUS first responder: \(String(describing: r.map { type(of: $0) })) inlineField=\(editingField)")
         }))
         steps.append(("forecast-calendar", { model.sidebar = .forecast }))
+        steps.append(("file-in-place", {
+            model.sidebar = .inbox
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                let before = model.sections().flatMap(\.rows).map(\.id)
+                guard before.count > 3, let project = model.snapshot.orderedProjects.first(where: { model.snapshot.info[$0.id]?.isRemaining == true }) else { return }
+                let id = before[2]
+                model.selection = [id]
+                model.assignProject([id], project.id)
+                let after = model.sections().flatMap(\.rows).map(\.id)
+                model.perform("Tag") { tx in if let tag = model.snapshot.orderedTags.first?.tag.id { tx.setTag(id, tag, true) } }
+                let afterTag = model.sections().flatMap(\.rows).map(\.id)
+                NSLog("TASKER-FILE before=\(before.firstIndex(of: id) ?? -1) afterProject=\(after.firstIndex(of: id) ?? -1) afterTag=\(afterTag.firstIndex(of: id) ?? -1) neighboursSame=\(Array(before.prefix(6)) == Array(afterTag.prefix(6)))")
+                model.cleanUp()
+                NSLog("TASKER-FILE afterCleanUp present=\(model.sections().flatMap(\.rows).contains { $0.id == id })")
+                _ = model.store.undo // keep the scratch DB realistic; nothing else to do
+            }
+        }))
         steps.append(("quick-entry", { model.editingPerspective = nil; QuickEntryController.shared.show(capture: .init(title: "Call Anna #pho ::home due:fri", note: "")) }))
 
         if ProcessInfo.processInfo.environment["TASKER_STRESS"] != nil {

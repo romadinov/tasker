@@ -87,6 +87,9 @@ final class AppModel {
     var recentlyCompleted: Set<String> = []
     /// Items filed out of the Inbox this session; like OmniFocus they stay visible there until Clean Up.
     var inboxKept: Set<String> = []
+    /// Where each filed item sat: the inbox item just above it (nil = top), so it can stay in place.
+    @ObservationIgnored var inboxAnchor: [String: String?] = [:]
+    @ObservationIgnored var inboxIndex: [String: Int] = [:]
     var filter: ItemFilter = .remaining
     var tagFilter: ItemFilter = .available
     var searchText = ""
@@ -425,11 +428,21 @@ final class AppModel {
     func cleanUp() {
         recentlyCompleted = []
         inboxKept = []
+        inboxAnchor = [:]
+        inboxIndex = [:]
         snapshot = store.snapshot()
     }
 
     func assignProject(_ ids: [String], _ projectID: String?) {
-        for id in ids where snapshot.info[id]?.isInbox == true && snapshot.tasks[id]?.isProject == false { inboxKept.insert(id) }
+        // Remember the row visibly above each filed item (and its position) so it can stay put.
+        let visible = sidebar == .inbox ? sections().flatMap(\.rows).map(\.id) : []
+        for id in ids where snapshot.info[id]?.isInbox == true && snapshot.tasks[id]?.isProject == false {
+            if inboxAnchor[id] == nil, let i = visible.firstIndex(of: id) {
+                inboxAnchor[id] = .some(i > 0 ? visible[i - 1] : nil)
+                inboxIndex[id] = i
+            }
+            inboxKept.insert(id)
+        }
         moveItems(ids, to: projectID)
     }
 
@@ -605,10 +618,24 @@ final class AppModel {
         case .inbox:
             var rows: [OutlineRow] = []
             outline(snapshot.inboxIDs, depth: 0, filter: .remaining, into: &rows)
+            // Filed items stay exactly where they were until Clean Up, so editing project then tags
+            // doesn't make the row jump.
             let kept = inboxKept.filter { snapshot.tasks[$0] != nil && snapshot.info[$0]?.isInbox == false }
-            var out = [OutlineSection(id: "inbox", title: "", rows: rows)]
-            if !kept.isEmpty { out.append(OutlineSection(id: "filed", title: "Filed — Clean Up to hide", rows: flat(Array(kept).sorted()))) }
-            return out
+            for id in snapshot.inboxIDs.isEmpty ? Array(kept) : kept.sorted(by: { anchorDepth($0) < anchorDepth($1) }) {
+                let row = OutlineRow(id: id, kind: .task, depth: 0, hasChildren: false, expanded: false, showContext: true)
+                var anchor = inboxAnchor[id] ?? nil
+                // Walk up past anchors that were themselves filed but are no longer shown.
+                var guardN = 0
+                while let a = anchor, !rows.contains(where: { $0.id == a }), guardN < 50 { anchor = inboxAnchor[a] ?? nil; guardN += 1 }
+                if let a = anchor, let i = rows.lastIndex(where: { $0.id == a || isDescendantRow($0.id, of: a) }) {
+                    rows.insert(row, at: i + 1)
+                } else if anchor == nil, inboxAnchor[id] == .some(nil) {
+                    rows.insert(row, at: 0) // it was the first row
+                } else {
+                    rows.insert(row, at: min(inboxIndex[id] ?? 0, rows.count))
+                }
+            }
+            return [OutlineSection(id: "inbox", title: "", rows: rows)]
         case .projects, .review:
             if projectFocus.isEmpty {
                 if sidebar == .review {
@@ -656,6 +683,16 @@ final class AppModel {
             if !extra.isEmpty { result.append(OutlineSection(id: "recent", title: "Just completed", rows: flat(Array(extra).sorted()))) }
             return result
         }
+    }
+
+    private func anchorDepth(_ id: String) -> Int {
+        var n = 0, cur = inboxAnchor[id] ?? nil
+        while let c = cur, n < 50 { n += 1; cur = inboxAnchor[c] ?? nil }
+        return n
+    }
+
+    private func isDescendantRow(_ id: String, of ancestor: String) -> Bool {
+        snapshot.ancestors(of: id).contains(ancestor)
     }
 
     func flat(_ ids: [String], showProject: Bool = true) -> [OutlineRow] {
