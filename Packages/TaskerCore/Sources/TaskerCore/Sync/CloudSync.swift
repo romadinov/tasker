@@ -108,6 +108,8 @@ public final class CloudSync: CKSyncEngineDelegate, @unchecked Sendable {
     func checkAccount() async {
         do {
             let s = try await container.accountStatus()
+            let c = store.syncCounts()
+            note("Account status \(s.rawValue) (1=available); container \(container.containerIdentifier ?? "?"); local ops \(c.totalOps), pending upload \(c.pendingUpload)")
             if s != .available {
                 update { $0.phase = .noAccount; $0.lastError = "iCloud account unavailable (\(s.rawValue)). Sign in to iCloud and enable iCloud Drive." }
             }
@@ -312,6 +314,7 @@ public final class CloudSync: CKSyncEngineDelegate, @unchecked Sendable {
                     break
                 }
             }
+            note("Fetched \(e.modifications.count) records (\(ops.count) changes), \(e.deletions.count) deletions")
             do {
                 let n = try store.ingest(ops)
                 if n > 0 { note("Merged \(n) changes") }
@@ -379,8 +382,10 @@ public final class CloudSync: CKSyncEngineDelegate, @unchecked Sendable {
             }
 
         case .willFetchChanges:
+            note("Fetching changes…")
             update { $0.phase = .fetching }
         case .didFetchChanges:
+            note("Fetch finished; local ops \(store.syncCounts().totalOps)")
             lock.withLock { holdUploadsUntilFetched = false }
             update { $0.phase = .idle; $0.lastFetch = Date(); if case .error = $0.phase {} else { $0.lastError = nil } }
             checkCompleteness()
@@ -429,6 +434,9 @@ public final class CloudSync: CKSyncEngineDelegate, @unchecked Sendable {
 
     private func note(_ s: String) {
         log.info("\(s, privacy: .public)")
+        #if DEBUG
+        print("[TaskerSync] \(s)")
+        #endif
         lock.withLock {
             let f = DateFormatter(); f.dateFormat = "HH:mm:ss"
             status.events.insert("\(f.string(from: Date()))  \(s)", at: 0)
