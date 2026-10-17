@@ -52,12 +52,18 @@ Mac app → Settings → Import → *Read from OmniFocus*. This runs an Omni Aut
 | Services → Send to Tasker | Selected text from any app |
 | ⌘N / ⇧⌘N / ⌥⇧⌘N | New action / project / folder |
 | ↩ | Edit title (↩ again adds the next sibling) |
-| ⌘K | Complete |
-| ⇧⌘L | Flag |
+| Space | Complete (in the list) |
+| F / ⇧⌘L | Flag |
+| ⌘K | Clean Up |
+| ⌃⌥⇧Space | Quick Clip (saves straight to the Inbox) |
 | ⌘] / ⌘[ | Indent / outdent |
 | ⌃⌘↑ / ⌃⌘↓ | Move up / down |
 | ⇧⌘M | Move to… |
-| ⌘1–⌘6 | Inbox, Projects, Tags, Forecast, Flagged, Review (⌘7–9: first perspectives) |
+| ⌘1–⌘7 | Inbox, Projects, Tags, Forecast, Flagged, Nearby, Review (⌘8–9: first perspectives) |
+| ⌥⌘[ / ⌥⌘] | Back / Forward |
+| ⇧⌘F | Focus |
+| ⌥⌘I / ⌃⌘S | Inspector / Sidebar |
+| Return / Tab in row fields | Project → Tags → Flag |
 
 Quick-entry shorthand: `#tag ::project ! due:fri defer:tomorrow plan:+3d ~30m`
 
