@@ -17,7 +17,7 @@ final class QuickEntryController {
 
     func show(capture: AppModel.Capture = .init()) {
         panel?.close()
-        let panel = QuickEntryWindow(contentRect: NSRect(x: 0, y: 0, width: 620, height: 230),
+        let panel = QuickEntryWindow(contentRect: NSRect(x: 0, y: 0, width: 640, height: 220),
                                      styleMask: [.titled, .closable, .fullSizeContentView, .nonactivatingPanel, .utilityWindow],
                                      backing: .buffered, defer: false)
         panel.titleVisibility = .hidden
@@ -29,14 +29,18 @@ final class QuickEntryController {
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient]
         panel.standardWindowButton(.miniaturizeButton)?.isHidden = true
         panel.standardWindowButton(.zoomButton)?.isHidden = true
+        panel.standardWindowButton(.closeButton)?.isHidden = true
 
         let root = QuickEntryForm(capture: capture, onDone: { [weak panel] in panel?.close() })
             .environment(AppModel.shared)
-            .frame(width: 620)
-            .background(.regularMaterial)
-        let hosting = NSHostingView(rootView: root)
-        panel.contentView = hosting
-        panel.setContentSize(hosting.fittingSize)
+            .frame(width: 640)
+            .background(Color(nsColor: .textBackgroundColor))
+            .ignoresSafeArea(.container, edges: .top) // no empty strip where the hidden title bar is
+        // The window follows the form's size (extra fields, inline dropdown fields).
+        let controller = NSHostingController(rootView: root)
+        controller.sizingOptions = [.preferredContentSize]
+        panel.contentViewController = controller
+        panel.setContentSize(controller.view.fittingSize)
 
         if let screen = NSScreen.main {
             let f = screen.visibleFrame

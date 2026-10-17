@@ -38,6 +38,7 @@ struct RootView: View {
         #if os(iOS)
         .sheet(isPresented: $model.showQuickEntry) {
             NavigationStack { QuickEntryForm(capture: model.quickEntryCapture, onDone: { model.showQuickEntry = false }) }
+                .presentationDetents([.medium, .large])
         }
         #endif
         .alert("Database problem", isPresented: Binding(get: { model.openError != nil }, set: { if !$0 { model.openError = nil } })) {

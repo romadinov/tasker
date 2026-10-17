@@ -129,7 +129,7 @@ enum DebugSnapshots {
                 _ = model.store.undo // keep the scratch DB realistic; nothing else to do
             }
         }))
-        steps.append(("quick-entry", { model.editingPerspective = nil; QuickEntryController.shared.show(capture: .init(title: "Call Anna #pho ::home due:fri", note: "")) }))
+        steps.append(("quick-entry", { model.editingPerspective = nil; QuickEntryController.shared.show(capture: .init()) }))
 
         if ProcessInfo.processInfo.environment["TASKER_STRESS"] != nil {
             // Rapidly flip between perspectives with and without a sidebar (toolbar race regression test).

@@ -1,149 +1,306 @@
 import SwiftUI
 import TaskerCore
 
-/// Shared quick-capture form: the floating panel on the Mac, a sheet on iPhone/iPad.
+/// Quick Entry, OmniFocus style: one item laid out like a list row
+/// (circle · "Untitled Item" · Project / Tags / Due / Repeat · Add Note), with Cancel / Save below.
 struct QuickEntryForm: View {
     @Environment(AppModel.self) private var model
     let capture: AppModel.Capture
     let onDone: () -> Void
+
+    enum Focus: Hashable { case title, note }
+    enum Field: Hashable { case project, tags }
 
     @State private var title = ""
     @State private var note = ""
     @State private var projectID: String?
     @State private var tagIDs: [String] = []
     @State private var flagged = false
-    @State private var deferText = ""
-    @State private var dueText = ""
+    @State private var due: Date?
+    @State private var deferDate: Date?
+    @State private var planned: Date?
+    @State private var estimate: Int?
+    @State private var repeatRule: RepeatRule?
+    @State private var showNote = false
+    @State private var showMore = false
+    @State private var editing: Field?
+    @State private var dueOpen = false
+    @State private var repeatOpen = false
     @State private var savedCount = 0
-    @State private var presetDue: Date?
-    @FocusState private var titleFocused: Bool
+    @FocusState private var focus: Focus?
 
     var body: some View {
         let s = model.snapshot
-        let preview = QuickEntryParser(snapshot: s).parse(title)
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 8) {
-                Image(systemName: "tray.and.arrow.down.fill").foregroundStyle(.tint)
-                TextField("New action", text: $title, prompt: Text("New action   #tag ::project ! due:fri"), axis: .vertical)
-                    .labelsHidden()
-                    .textFieldStyle(.plain)
-                    .font(.title3)
-                    .lineLimit(1...3)
-                    .focused($titleFocused)
-                    .onSubmit { save(keepOpen: false) }
-            }
-            // What the inline shorthand will do.
-            if preview != QuickEntryParser.Result(title: title) {
-                HStack(spacing: 4) {
-                    if let p = preview.projectID, let project = s.tasks[p] { Badge(text: project.title, systemImage: "circle.grid.2x2", color: Palette.project) }
-                    ForEach(preview.tagIDs, id: \.self) { Badge(text: s.tags[$0]?.name ?? "", color: Palette.tag) }
-                    ForEach(preview.unknownTags, id: \.self) { Badge(text: "+" + $0, color: Palette.tag) }
-                    if preview.flagged { Image(systemName: "flag.fill").foregroundStyle(Palette.flag) }
-                    if let d = preview.dueDate { Badge(text: "Due " + Fmt.relative(d), color: Palette.dueSoon) }
-                    if let d = preview.deferDate { Badge(text: "Defer " + Fmt.relative(d)) }
-                    if let d = preview.plannedDate { Badge(text: "Planned " + Fmt.relative(d), color: .blue) }
-                    if let e = preview.estimatedMinutes { Badge(text: Fmt.estimate(e), systemImage: "clock") }
+        VStack(spacing: 0) {
+            HStack(alignment: .top, spacing: 10) {
+                Circle()
+                    .strokeBorder(Color.secondary.opacity(0.7), lineWidth: 1.5)
+                    .frame(width: 18, height: 18)
+                    .padding(.top, 2)
+                VStack(alignment: .leading, spacing: 6) {
+                    TextField("Untitled Item", text: $title, prompt: Text("Untitled Item"), axis: .vertical)
+                        .labelsHidden()
+                        .textFieldStyle(.plain)
+                        .font(.body)
+                        .lineLimit(1...4)
+                        .focused($focus, equals: .title)
+                        .onSubmit { save(keepOpen: false) }
+                    fieldsRow(s)
+                    if showMore { moreRow(s) }
+                    if showNote || !note.isEmpty {
+                        TextField("Note", text: $note, prompt: Text("Note"), axis: .vertical)
+                            .labelsHidden()
+                            .textFieldStyle(.plain)
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(2...10)
+                            .focused($focus, equals: .note)
+                    } else {
+                        Button { showNote = true; DispatchQueue.main.async { focus = .note } } label: {
+                            Text("Add Note").font(.callout).foregroundStyle(.secondary.opacity(0.75))
+                        }
+                        .buttonStyle(.plain)
+                    }
                 }
-                .font(.caption)
+                Spacer(minLength: 8)
+                HStack(spacing: 10) {
+                    Button { showNote = true; DispatchQueue.main.async { focus = .note } } label: {
+                        Image(systemName: "note.text").foregroundStyle(note.isEmpty ? Color.secondary.opacity(0.6) : Color.secondary)
+                    }
+                    .buttonStyle(.plain).help("Note")
+                    Button { flagged.toggle() } label: {
+                        Image(systemName: flagged ? "flag.fill" : "flag").foregroundStyle(flagged ? Palette.flag : Color.secondary.opacity(0.6))
+                    }
+                    .buttonStyle(.plain).help("Flag")
+                }
+                .padding(.top, 2)
             }
-
-            TextField("Note", text: $note, prompt: Text("Note"), axis: .vertical)
-                .labelsHidden()
-                .textFieldStyle(.plain)
-                .lineLimit(2...6)
-                .foregroundStyle(.secondary)
+            .padding(.horizontal, 18)
+            .padding(.top, 16)
+            .padding(.bottom, 14)
+            .frame(maxWidth: .infinity, minHeight: 150, alignment: .topLeading)
+            .overlay(alignment: .leading) {
+                Rectangle().fill(Color.accentColor.opacity(0.35)).frame(width: 3).padding(.vertical, 10)
+            }
 
             Divider()
-
-            // Project: chip when chosen, otherwise an autocomplete field.
-            if let pid = projectID, let p = s.tasks[pid] {
-                HStack {
-                    Image(systemName: "circle.grid.2x2").foregroundStyle(Palette.project)
-                    Text(p.title)
-                    Button { projectID = nil } label: { Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary) }
-                        .buttonStyle(.plain)
-                    Spacer()
-                }
-            } else {
-                AutocompleteField(placeholder: "Project (Inbox)", icon: "circle.grid.2x2",
-                                  suggestions: { Lookup.projects(model.snapshot, $0) },
-                                  isExisting: { model.snapshot.project(atPath: $0) != nil },
-                                  createLabel: Lookup.newProjectLabel,
-                                  onPick: { projectID = $0.id },
-                                  onCreate: { name in projectID = model.createProject(named: name) })
-            }
-
-            HStack(alignment: .firstTextBaseline, spacing: 4) {
-                ForEach(tagIDs, id: \.self) { id in
-                    Button { tagIDs.removeAll { $0 == id } } label: { Badge(text: s.tags[id]?.name ?? "?", systemImage: "xmark", color: Palette.tag) }
-                        .buttonStyle(.plain)
-                }
-                AutocompleteField(placeholder: tagIDs.isEmpty ? "Tags" : "Add tag", icon: "tag",
-                                  suggestions: { Lookup.tags(model.snapshot, $0, excluding: Set(tagIDs)) },
-                                  createLabel: { "New tag “\($0)”" },
-                                  onPick: { tagIDs.append($0.id) },
-                                  onCreate: { name in tagIDs.append(model.createTag(named: name)) })
-            }
-
-            HStack(spacing: 8) {
-                Toggle(isOn: $flagged) { Image(systemName: flagged ? "flag.fill" : "flag") }
-                    .toggleStyle(.button)
-                    .tint(Palette.flag)
-                TextField("Defer", text: $deferText, prompt: Text("Defer: tom, fri…"))
-                TextField("Due", text: $dueText, prompt: Text(presetDue.map { "Due " + Fmt.relative($0) } ?? "Due: today, +3d…"))
-            }
-            .textFieldStyle(.roundedBorder)
-
             HStack {
+                Button { withAnimation(.snappy(duration: 0.15)) { showMore.toggle() } } label: {
+                    Image(systemName: showMore ? "eye.fill" : "eye").font(.title3)
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.secondary)
+                .help(showMore ? "Hide more fields" : "Show Defer, Planned and Estimate")
                 if savedCount > 0 { Text("Saved \(savedCount)").font(.caption).foregroundStyle(.secondary) }
                 Spacer()
-                #if os(macOS)
                 Button("Cancel", role: .cancel) { onDone() }
                     .keyboardShortcut(.cancelAction)
-                #endif
-                Button("Save & Add Another") { save(keepOpen: true) }
-                    .keyboardShortcut(.return, modifiers: [.command, .shift])
-                #if os(macOS)
+                    .controlSize(.large)
                 Button("Save") { save(keepOpen: false) }
                     .keyboardShortcut(.return, modifiers: .command)
                     .buttonStyle(.borderedProminent)
-                #endif
+                    .controlSize(.large)
+                // ⇧⌘↩ saves and starts the next item.
+                Button("") { save(keepOpen: true) }
+                    .keyboardShortcut(.return, modifiers: [.command, .shift])
+                    .frame(width: 0, height: 0).opacity(0)
             }
-            #if os(iOS)
-            Spacer(minLength: 0)
-            #endif
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+            .background(.bar)
         }
-        .padding(16)
         .onAppear {
             title = capture.title
             note = capture.note
+            showNote = !capture.note.isEmpty
             projectID = capture.projectID
             tagIDs = capture.tagIDs
             flagged = capture.flagged || model.sidebar == .flagged
-            presetDue = capture.dueDate
-            DispatchQueue.main.async { titleFocused = true }
+            due = capture.dueDate
+            DispatchQueue.main.async { focus = .title }
         }
         #if os(iOS)
         .navigationTitle("New Action")
         .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .cancellationAction) { Button("Cancel", role: .cancel) { onDone() } }
-            ToolbarItem(placement: .confirmationAction) { Button("Save") { save(keepOpen: false) }.fontWeight(.semibold) }
-        }
         #endif
     }
 
+    // MARK: Fields
+
+    @ViewBuilder
+    func fieldsRow(_ s: Snapshot) -> some View {
+        HStack(spacing: 10) {
+            // Project
+            if editing == .project {
+                comboField(kind: .project, placeholder: "Project") { item, viaTab in
+                    if let item {
+                        projectID = item.createName.map { model.createProject(named: $0) } ?? item.id
+                    }
+                    editing = .tags
+                    return false
+                }
+                .frame(width: 220)
+            } else {
+                fieldButton(icon: "circle.grid.2x2", text: projectID.flatMap { s.tasks[$0]?.title } ?? "Project",
+                            set: projectID != nil, tint: Palette.project) { editing = .project }
+            }
+            // Tags
+            if editing == .tags {
+                ForEach(tagIDs, id: \.self) { id in Badge(text: s.tags[id]?.name ?? "", color: Palette.tag) }
+                comboField(kind: .tag, placeholder: "Add tag") { item, viaTab in
+                    if let item {
+                        let id = item.createName.map { model.createTag(named: $0) } ?? item.id
+                        if !tagIDs.contains(id) { tagIDs.append(id) }
+                    }
+                    if viaTab || item == nil { editing = nil; focus = .title; return false }
+                    return true
+                }
+                .frame(width: 160)
+            } else {
+                fieldButton(icon: "tag", text: tagIDs.isEmpty ? "Tags" : s.tagNames(tagIDs).joined(separator: ", "),
+                            set: !tagIDs.isEmpty, tint: Palette.tag) { editing = .tags }
+            }
+            // Due
+            fieldButton(icon: "calendar", text: due.map { Fmt.relative($0) } ?? "Due", set: due != nil,
+                        tint: due.map { $0 < Date() ? Palette.overdue : Palette.dueSoon } ?? .secondary) { dueOpen = true }
+                .popover(isPresented: $dueOpen, arrowEdge: .bottom) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Due").font(.headline)
+                        OFDateField(date: due, defaultHour: 17) { due = $0 }
+                    }
+                    .padding(12).frame(width: 300)
+                }
+            // Repeat
+            fieldButton(icon: "repeat", text: repeatRule?.summary ?? "Repeat", set: repeatRule != nil, tint: .secondary) { repeatOpen = true }
+                .popover(isPresented: $repeatOpen, arrowEdge: .bottom) {
+                    Form { RepeatEditor(rule: repeatRule) { repeatRule = $0 } }
+                        .formStyle(.grouped)
+                        .frame(width: 340, height: 280)
+                }
+        }
+        .font(.callout)
+    }
+
+    @ViewBuilder
+    func moreRow(_ s: Snapshot) -> some View {
+        HStack(spacing: 10) {
+            DateFieldButton(label: "Defer", icon: "arrow.turn.up.right", date: $deferDate, hour: 0)
+            DateFieldButton(label: "Planned", icon: "calendar.badge.clock", date: $planned, hour: 9)
+            Menu {
+                ForEach([5, 10, 15, 30, 45, 60, 90, 120], id: \.self) { m in Button(Fmt.estimate(m)) { estimate = m } }
+                Divider()
+                Button("None") { estimate = nil }
+            } label: {
+                Label(estimate.map(Fmt.estimate) ?? "Estimate", systemImage: "clock")
+                    .foregroundStyle(estimate == nil ? Color.secondary.opacity(0.75) : .primary)
+            }
+            .menuStyle(.borderlessButton)
+            .fixedSize()
+        }
+        .font(.callout)
+    }
+
+    func fieldButton(icon: String, text: String, set: Bool, tint: Color, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 3) {
+                Image(systemName: icon).imageScale(.small)
+                Text(text).lineLimit(1)
+            }
+            .foregroundStyle(set ? tint : Color.secondary.opacity(0.75))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    @ViewBuilder
+    func comboField(kind: ComboKind, placeholder: String, onCommit: @escaping (ComboItem?, Bool) -> Bool) -> some View {
+        #if os(macOS)
+        QuickComboField(kind: kind, placeholder: placeholder, excluded: Set(tagIDs), onCommit: onCommit, onCancel: { editing = nil })
+        #else
+        AutocompleteField(placeholder: placeholder, icon: kind == .project ? "circle.grid.2x2" : "tag",
+                          suggestions: { kind == .project ? Lookup.projects(model.snapshot, $0) : Lookup.tags(model.snapshot, $0, excluding: Set(tagIDs)) },
+                          createLabel: kind == .project ? Lookup.newProjectLabel : { "New tag “\($0)”" },
+                          onPick: { s in _ = onCommit(ComboItem(id: s.id, folder: "", title: s.title, onHold: false), false) },
+                          onCreate: { name in _ = onCommit(ComboItem(id: "#new", folder: "", title: name, onHold: false, createName: name), false) },
+                          showAllWhenEmpty: true)
+        #endif
+    }
+
+    // MARK: Save
+
     func save(keepOpen: Bool) {
-        let parser = QuickEntryParser(snapshot: model.snapshot)
-        let id = model.quickAdd(title: title, note: note, projectID: projectID, tagIDs: tagIDs, flagged: flagged,
-                                deferDate: parser.date(deferText, hour: 0), dueDate: parser.date(dueText, hour: 17) ?? presetDue)
-        guard id != nil else { if !keepOpen { onDone() }; return }
+        let raw = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !raw.isEmpty || !note.isEmpty else { if !keepOpen { onDone() }; return }
+        let id = model.quickAdd(title: raw.isEmpty ? "Untitled Item" : raw, note: note, projectID: projectID, tagIDs: tagIDs,
+                                flagged: flagged, deferDate: deferDate, dueDate: due)
+        if let id {
+            model.perform("Quick Entry details") { tx in
+                if let planned { tx.setTask(id, F.plannedDate, .date(planned)) }
+                if let estimate { tx.setTask(id, F.estimate, .optional(estimate)) }
+                if let repeatRule { tx.setTask(id, F.repeatRule, JSON(encoding: repeatRule)) }
+            }
+        }
         savedCount += 1
         if keepOpen {
-            title = ""; note = ""; flagged = false; deferText = ""; dueText = ""
-            titleFocused = true
+            title = ""; note = ""; showNote = false; flagged = false; due = nil; deferDate = nil; planned = nil
+            estimate = nil; repeatRule = nil
+            focus = .title
         } else {
             onDone()
         }
     }
 }
+
+/// Date field with a popover (Defer / Planned in Quick Entry's extra row).
+struct DateFieldButton: View {
+    let label: String
+    let icon: String
+    @Binding var date: Date?
+    let hour: Int
+    @State private var open = false
+    var body: some View {
+        Button { open = true } label: {
+            HStack(spacing: 3) {
+                Image(systemName: icon).imageScale(.small)
+                Text(date.map { Fmt.relative($0) } ?? label)
+            }
+            .foregroundStyle(date == nil ? Color.secondary.opacity(0.75) : .primary)
+        }
+        .buttonStyle(.plain)
+        .popover(isPresented: $open, arrowEdge: .bottom) {
+            VStack(alignment: .leading, spacing: 8) {
+                Text(label).font(.headline)
+                OFDateField(date: date, defaultHour: hour) { date = $0 }
+            }
+            .padding(12).frame(width: 300)
+        }
+    }
+}
+
+#if os(macOS)
+/// Project/tag type-ahead for Quick Entry (not tied to an existing task).
+struct QuickComboField: View {
+    let kind: ComboKind
+    let placeholder: String
+    let excluded: Set<String>
+    let onCommit: (ComboItem?, Bool) -> Bool
+    let onCancel: () -> Void
+    @State private var state: ComboState
+
+    init(kind: ComboKind, placeholder: String, excluded: Set<String>, onCommit: @escaping (ComboItem?, Bool) -> Bool, onCancel: @escaping () -> Void) {
+        self.kind = kind; self.placeholder = placeholder; self.excluded = excluded; self.onCommit = onCommit; self.onCancel = onCancel
+        let s = ComboState(kind: kind) { AppModel.shared.snapshot }
+        s.excluded = excluded
+        s.refresh()
+        _state = State(initialValue: s)
+    }
+
+    var body: some View {
+        ComboTextField(state: state, placeholder: placeholder, onCommit: { item, tab in
+            let keep = onCommit(item, tab)
+            if keep, let item { state.excluded.insert(item.id) ; state.refresh() }
+            return keep
+        }, onCancel: onCancel)
+    }
+}
+#endif
