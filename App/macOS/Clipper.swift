@@ -213,7 +213,8 @@ enum Clipper {
         }
         // Apps put links in different flavours: URL, plain text, or only inside rich text/HTML.
         let types = pb.types?.map(\.rawValue) ?? []
-        let text = pb.string(forType: .string)
+        // A link's title travels as "public.url-name" (Mimestream puts the email subject there).
+        let text = pb.string(forType: NSPasteboard.PasteboardType("public.url-name")) ?? pb.string(forType: .string)
         var url = pb.string(forType: .URL) ?? pb.string(forType: NSPasteboard.PasteboardType("public.url"))
         if url == nil, let t = text { url = firstURL(in: t) }
         if url == nil, let html = pb.string(forType: .html), let r = html.range(of: #"href="([^"]+)""#, options: .regularExpression) {
