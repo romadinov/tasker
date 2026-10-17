@@ -65,6 +65,16 @@ extension RootView {
             PerspectiveRail()
             Divider()
             Group {
+                #if os(macOS)
+                // One split view for every perspective; the sidebar column is hidden when empty.
+                // (Swapping container types re-creates toolbar items and trips an NSToolbar race.)
+                NavigationSplitView(columnVisibility: $twoColumns) {
+                    PerspectiveSidebar()
+                        .navigationSplitViewColumnWidth(min: 200, ideal: 280, max: 400)
+                } detail: {
+                    ContentColumn()
+                }
+                #else
                 if (model.sidebar ?? .inbox).hasSidebarContent {
                     NavigationSplitView(columnVisibility: $twoColumns) {
                         PerspectiveSidebar()
@@ -73,9 +83,10 @@ extension RootView {
                         ContentColumn()
                     }
                 } else {
-                    // No sidebar content (Inbox, Flagged, custom perspectives): no empty column or drawer.
+                    // iPad: no empty sidebar drawer for Inbox, Flagged, custom perspectives.
                     NavigationStack { ContentColumn() }
                 }
+                #endif
             }
             .inspector(isPresented: $model.showInspector) {
                 InspectorColumn()
@@ -84,13 +95,17 @@ extension RootView {
         }
         #if os(macOS)
         .toolbar { OmniToolbar(model: model) }
-        .background(ToolbarLabelsOn())
         #endif
     }
 
     /// The sidebar column only appears for perspectives that have something to put in it.
     func syncColumns() {
-        if twoColumns != .all { twoColumns = .all }
+        #if os(macOS)
+        let want: NavigationSplitViewVisibility = (model.sidebar ?? .inbox).hasSidebarContent ? .all : .detailOnly
+        #else
+        let want = NavigationSplitViewVisibility.all
+        #endif
+        if twoColumns != want { DispatchQueue.main.async { twoColumns = want } }
     }
 }
 
@@ -216,6 +231,11 @@ struct OmniToolbar: ToolbarContent {
     @Bindable var model: AppModel
 
     var body: some ToolbarContent {
+        items
+    }
+
+    @ToolbarContentBuilder
+    var items: some ToolbarContent {
         ToolbarItemGroup(placement: .navigation) {
             ControlGroup {
                 Button { model.goBack() } label: { Label("Back", systemImage: "chevron.left") }
@@ -229,42 +249,49 @@ struct OmniToolbar: ToolbarContent {
                     ForEach(ItemFilter.allCases) { Text($0.label).tag($0) }
                 }
                 .pickerStyle(.inline)
-            } label: { Label("View", systemImage: "eye") }
+            } label: { Label("View", systemImage: "eye").labelStyle(IconAboveTitle()) }
             .help("View options")
         }
         ToolbarItemGroup(placement: .primaryAction) {
-            Button { model.newTask() } label: { Label("New Action", systemImage: "plus") }
+            Button { model.newTask() } label: { Label("New Action", systemImage: "plus").labelStyle(IconAboveTitle()) }
                 .help("New Action (⌘N)")
             #if os(macOS)
-            Button { QuickEntryController.shared.show() } label: { Label("Quick Entry", systemImage: "tray.and.arrow.down") }
+            Button { QuickEntryController.shared.show() } label: { Label("Quick Entry", systemImage: "tray.and.arrow.down").labelStyle(IconAboveTitle()) }
                 .help("Quick Entry (⌃⌥Space)")
             #else
-            Button { model.presentQuickEntry() } label: { Label("Quick Entry", systemImage: "tray.and.arrow.down") }
+            Button { model.presentQuickEntry() } label: { Label("Quick Entry", systemImage: "tray.and.arrow.down").labelStyle(IconAboveTitle()) }
             #endif
             Button { model.toggleFocus() } label: {
-                Label(model.focusIDs.isEmpty ? "Focus" : "Unfocus", systemImage: model.focusIDs.isEmpty ? "scope" : "xmark.circle")
+                Label(model.focusIDs.isEmpty ? "Focus" : "Unfocus", systemImage: model.focusIDs.isEmpty ? "scope" : "xmark.circle").labelStyle(IconAboveTitle())
             }
             .disabled(!model.canFocus)
             .help("Focus on the selected projects or folders (⇧⌘F)")
         }
         ToolbarItemGroup(placement: .primaryAction) {
-            Button { model.cleanUp() } label: { Label("Clean Up", systemImage: "wand.and.sparkles") }
+            if case .perspective(let id) = model.sidebar, let p = model.snapshot.perspectives.first(where: { $0.id == id }) {
+                Button { model.editingPerspective = p } label: { Label("Edit", systemImage: "slider.horizontal.3").labelStyle(IconAboveTitle()) }
+                    .help("Edit Perspective")
+            }
+            Button { model.cleanUp() } label: { Label("Clean Up", systemImage: "wand.and.sparkles").labelStyle(IconAboveTitle()) }
                 .help("Clean Up (⌘K)")
-            Button { model.showInspector.toggle() } label: { Label("Inspect", systemImage: "info.circle") }
+            Button { model.showInspector.toggle() } label: { Label("Inspect", systemImage: "info.circle").labelStyle(IconAboveTitle()) }
                 .help("Inspector (⌥⌘I)")
         }
     }
 }
 
-#if os(macOS)
-/// Shows labels under toolbar icons, as OmniFocus does (SwiftUI has no API for the display mode).
-struct ToolbarLabelsOn: NSViewRepresentable {
-    func makeNSView(context: Context) -> NSView {
-        let v = NSView()
-        DispatchQueue.main.async { v.window?.toolbar?.displayMode = .iconAndLabel }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { v.window?.toolbar?.displayMode = .iconAndLabel }
-        return v
+/// Icon with its title underneath, drawn inside the button. (Changing NSToolbar's display mode
+/// directly crashes SwiftUI's toolbar updates, so labels are part of the item instead.)
+struct IconAboveTitle: LabelStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        #if os(macOS)
+        VStack(spacing: 1) {
+            configuration.icon.font(.system(size: 14, weight: .regular))
+            configuration.title.font(.system(size: 10))
+        }
+        .frame(minWidth: 44)
+        #else
+        Label { configuration.title } icon: { configuration.icon }
+        #endif
     }
-    func updateNSView(_ nsView: NSView, context: Context) {}
 }
-#endif

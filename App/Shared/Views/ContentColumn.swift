@@ -112,7 +112,9 @@ struct ContentColumn: View {
         .toolbar { if !isCompactWidth { OmniToolbar(model: model) } }
         #endif
         .searchable(text: $model.searchText, placement: .toolbar, prompt: "Search everything")
+        #if os(iOS)
         .toolbar { toolbar }
+        #endif
         #if DEBUG
         .task { DebugHooks.run(model) { addAction() } }
         #endif

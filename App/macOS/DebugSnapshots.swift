@@ -64,10 +64,17 @@ enum DebugSnapshots {
         steps.append(("forecast-calendar", { model.sidebar = .forecast }))
         steps.append(("quick-entry", { model.editingPerspective = nil; QuickEntryController.shared.show(capture: .init(title: "Call Anna #pho ::home due:fri", note: "")) }))
 
+        if ProcessInfo.processInfo.environment["TASKER_STRESS"] != nil {
+            // Rapidly flip between perspectives with and without a sidebar (toolbar race regression test).
+            let items: [SidebarItem] = [.inbox, .tags, .flagged, .forecast, .projects, .nearby, .review] + model.snapshot.perspectives.prefix(2).map { .perspective($0.id) }
+            steps = (0..<60).map { i in ("stress-\(i)", { model.sidebar = items[i % items.count] }) }
+        }
         func run(_ i: Int) {
             guard i < steps.count else { NSApp.terminate(nil); return }
             steps[i].1()
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
+            let stress = ProcessInfo.processInfo.environment["TASKER_STRESS"] != nil
+            DispatchQueue.main.asyncAfter(deadline: .now() + (stress ? 0.15 : 1.2)) {
+                if stress { run(i + 1); return }
                 for (n, w) in NSApp.windows.enumerated() where w.isVisible && w.frame.width > 300 {
                     guard let view = w.contentView?.superview ?? w.contentView,
                           let rep = view.bitmapImageRepForCachingDisplay(in: view.bounds) else { continue }
