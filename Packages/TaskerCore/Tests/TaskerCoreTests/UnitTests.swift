@@ -266,3 +266,20 @@ import Testing
         #expect(AddRequest(url: URL(string: "tasker://add?title=Hi")!)?.quick == false)
     }
 }
+
+@Suite struct ScriptoriumPassageLinkTests {
+    // Example from Scriptorium build 29 (Pride and Prejudice EPUB).
+    let link = "scriptorium://open?doc=4c481087cce8e2a1d505&page=1&quote=universally%20acknowledged&prefix=It%20is%20a%20truth%20&suffix=%2C%20that%20a%20single%20man"
+
+    @Test func survivesTaskerAddAndNoteLinkDetection() throws {
+        // Scriptorium encodes each value strictly (only A–Z a–z 0–9 - . _ ~ literal).
+        let strict = CharacterSet(charactersIn: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~")
+        func enc(_ s: String) -> String { s.addingPercentEncoding(withAllowedCharacters: strict)! }
+        let url = URL(string: "tasker://add?title=\(enc("Pride and Prejudice — Chapter 1"))&url=\(enc(link))&note=\(enc("“It is a truth universally acknowledged”"))&quick=1&x-success=\(enc("scriptorium://"))")!
+        let r = try #require(AddRequest(url: url))
+        #expect(r.url == link)                       // nested query (& = %20 %2C) intact
+        let found = Links.find(in: r.fullNote)
+        #expect(found.first?.url.absoluteString == link) // recognised as one link in the note
+        #expect(found.first?.url.scheme == "scriptorium")
+    }
+}
