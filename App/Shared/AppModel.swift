@@ -84,6 +84,9 @@ final class AppModel {
     var editingID: String?
     /// Row whose note is being edited inline.
     var noteEditingID: String?
+    /// Row whose project field is open (OmniFocus combo), and text to start with.
+    var projectEditingID: String?
+    var projectEditingSeed = ""
     var recentlyCompleted: Set<String> = []
     /// Items filed out of the Inbox this session; like OmniFocus they stay visible there until Clean Up.
     var inboxKept: Set<String> = []

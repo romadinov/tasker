@@ -226,7 +226,7 @@ struct SelectedFieldsLine: View {
         let due = task.dueDate
         let dueColor: Color = due.map { $0 < s.now ? Palette.overdue : ($0 < s.dueSoon ? Palette.dueSoon : .secondary) } ?? .secondary
         HStack(spacing: 6) {
-            ProjectChip(task: task, placeholder: true)
+            InlineProjectField(task: task)
             TagChips(task: task, showAdd: true)
             DateChip(task: task, field: F.deferDate, label: "Defer", icon: "arrow.turn.up.right", date: task.deferDate, defaultHour: 0)
             DateChip(task: task, field: F.dueDate, label: "Due", icon: "calendar", date: due, defaultHour: 17, color: dueColor)

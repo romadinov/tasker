@@ -1,0 +1,298 @@
+import SwiftUI
+import TaskerCore
+#if os(macOS)
+import AppKit
+#endif
+
+/// One row in the project dropdown.
+struct ComboItem: Identifiable, Hashable {
+    let id: String
+    let folder: String
+    let title: String
+    let onHold: Bool
+    var createName: String? = nil
+
+    var display: String { folder.isEmpty ? title : "\(folder) : \(title)" }
+}
+
+@MainActor @Observable
+final class ComboState {
+    var query = "" { didSet { refresh() } }
+    var items: [ComboItem] = []
+    var highlighted = 0
+    @ObservationIgnored let snapshot: () -> Snapshot
+
+    init(snapshot: @escaping () -> Snapshot) { self.snapshot = snapshot }
+
+    func refresh() {
+        let s = snapshot()
+        let q = query.trimmingCharacters(in: .whitespaces)
+        var out = Lookup.projects(s, q).prefix(40).map { sug in
+            ComboItem(id: sug.id, folder: sug.subtitle ?? "", title: sug.title, onHold: s.tasks[sug.id]?.status == .onHold)
+        }
+        if !q.isEmpty && s.project(atPath: q) == nil {
+            out.append(ComboItem(id: "#new", folder: "", title: Lookup.newProjectLabel(q), onHold: false, createName: q))
+        }
+        items = Array(out)
+        highlighted = 0
+    }
+
+    func move(_ d: Int) {
+        guard !items.isEmpty else { return }
+        highlighted = min(max(highlighted + d, 0), items.count - 1)
+    }
+
+    var current: ComboItem? { items.indices.contains(highlighted) ? items[highlighted] : nil }
+}
+
+/// OmniFocus-style project field for the selected row: click → type → dropdown of
+/// "Folder : Project" with typed letters highlighted → Return picks.
+struct InlineProjectField: View {
+    @Environment(AppModel.self) private var model
+    let task: TaskItem
+
+    var body: some View {
+        let s = model.snapshot
+        let projectID = s.info[task.id]?.projectID
+        let name = projectID.flatMap { s.tasks[$0]?.title }
+        if model.projectEditingID == task.id {
+            ProjectComboEditor(task: task, initial: model.projectEditingSeed, onDone: { model.projectEditingID = nil })
+                .frame(minWidth: 180, maxWidth: 260)
+        } else {
+            Button { model.projectEditingSeed = ""; model.projectEditingID = task.id } label: {
+                HStack(spacing: 3) {
+                    Image(systemName: "circle.grid.2x2").imageScale(.small)
+                    Text(name ?? "Project").lineLimit(1)
+                    if name != nil { Image(systemName: "chevron.down").font(.system(size: 7, weight: .bold)) }
+                }
+                .font(.caption)
+                .foregroundStyle(name == nil ? Color.secondary.opacity(0.7) : Palette.project)
+                .padding(.horizontal, 4).padding(.vertical, 1)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .help("Project — click and type to choose")
+        }
+    }
+}
+
+struct ProjectComboEditor: View {
+    @Environment(AppModel.self) private var model
+    let task: TaskItem
+    let initial: String
+    let onDone: () -> Void
+    @State private var state: ComboState
+    @State private var showList = true
+
+    init(task: TaskItem, initial: String, onDone: @escaping () -> Void) {
+        self.task = task; self.initial = initial; self.onDone = onDone
+        let s = ComboState { AppModel.shared.snapshot }
+        s.query = initial
+        _state = State(initialValue: s)
+    }
+
+    var body: some View {
+        #if os(macOS)
+        ComboTextField(state: state, onCommit: commit, onCancel: onDone)
+        #else
+        TextField("Project", text: Bindable(state).query)
+            .textFieldStyle(.roundedBorder)
+            .onSubmit { commit(state.current) }
+            .popover(isPresented: $showList, arrowEdge: .bottom) {
+                ComboList(state: state, onPick: commit)
+                    .frame(width: 380)
+                    .presentationCompactAdaptation(.popover)
+            }
+        #endif
+    }
+
+    func commit(_ item: ComboItem?) {
+        defer { onDone() }
+        guard let item else { return }
+        if let name = item.createName {
+            model.assignProject([task.id], model.createProject(named: name))
+        } else {
+            model.assignProject([task.id], item.id)
+        }
+    }
+}
+
+/// The dropdown list (shared by the Mac panel and the iPad popover).
+struct ComboList: View {
+    @Bindable var state: ComboState
+    let onPick: (ComboItem) -> Void
+
+    var body: some View {
+        ScrollViewReader { proxy in
+            ScrollView {
+                VStack(alignment: .leading, spacing: 0) {
+                    ForEach(Array(state.items.enumerated()), id: \.element.id) { i, item in
+                        let selected = i == state.highlighted
+                        Button { onPick(item) } label: {
+                            Text(highlighted(item, selected: selected))
+                                .lineLimit(1)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(.horizontal, 8).padding(.vertical, 3)
+                                .background(selected ? Color.accentColor : .clear)
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .id(i)
+                    }
+                    if state.items.isEmpty {
+                        Text("No matching projects").foregroundStyle(.secondary).padding(8)
+                    }
+                }
+            }
+            .onChange(of: state.highlighted) { _, i in proxy.scrollTo(i) }
+        }
+        .font(.system(size: 12))
+    }
+
+    func highlighted(_ item: ComboItem, selected: Bool) -> AttributedString {
+        if let name = item.createName {
+            var a = AttributedString("＋ " + Lookup.newProjectLabel(name))
+            a.foregroundColor = selected ? .white : .accentColor
+            return a
+        }
+        let text = item.display
+        var a = AttributedString(text)
+        a.foregroundColor = selected ? .white : (item.onHold ? .secondary : .primary)
+        if !item.folder.isEmpty, let r = a.range(of: item.folder) {
+            if !selected { a[r].foregroundColor = item.onHold ? Color.secondary.opacity(0.7) : .secondary }
+        }
+        // Highlight the typed letters in the project name (OmniFocus shows them on a yellow tint).
+        let titleOffset = text.count - item.title.count
+        let positions = Fuzzy.matchPositions(state.query, item.title).map { $0 + titleOffset }
+        let chars = Array(text)
+        for p in positions where p < chars.count {
+            let lower = a.index(a.startIndex, offsetByCharacters: p)
+            let upper = a.index(lower, offsetByCharacters: 1)
+            if selected {
+                a[lower..<upper].underlineStyle = .single
+            } else {
+                a[lower..<upper].backgroundColor = Color.yellow.opacity(0.45)
+            }
+        }
+        return a
+    }
+}
+
+#if os(macOS)
+/// AppKit field that drives the dropdown: ↑/↓ move, Return/Tab pick, Esc cancels.
+/// The list lives in a borderless child window under the field, so the table can't clip it.
+struct ComboTextField: NSViewRepresentable {
+    let state: ComboState
+    let onCommit: (ComboItem?) -> Void
+    let onCancel: () -> Void
+
+    func makeNSView(context: Context) -> AutoFocusTextField {
+        let f = AutoFocusTextField()
+        f.isBordered = true
+        f.bezelStyle = .roundedBezel
+        f.focusRingType = .none
+        f.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
+        f.placeholderString = "Project"
+        f.delegate = context.coordinator
+        f.stringValue = state.query
+        context.coordinator.field = f
+        DispatchQueue.main.async { context.coordinator.showPanel() }
+        return f
+    }
+
+    func updateNSView(_ nsView: AutoFocusTextField, context: Context) {
+        context.coordinator.parent = self
+    }
+
+    static func dismantleNSView(_ nsView: AutoFocusTextField, coordinator: Coordinator) {
+        coordinator.hidePanel()
+    }
+
+    func makeCoordinator() -> Coordinator { Coordinator(self) }
+
+    @MainActor
+    final class Coordinator: NSObject, NSTextFieldDelegate {
+        var parent: ComboTextField
+        weak var field: NSTextField?
+        var panel: NSPanel?
+        var done = false
+        init(_ p: ComboTextField) { parent = p }
+
+        func showPanel() {
+            guard let field, let window = field.window else { return }
+            let p = DropdownPanel(contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
+            p.hasShadow = true
+            p.isOpaque = false
+            p.backgroundColor = .clear
+            let host = FirstMouseHostingView(rootView:
+                ComboList(state: parent.state, onPick: { [weak self] item in self?.finish(item) })
+                    .background(RoundedRectangle(cornerRadius: 6).fill(Color(nsColor: .windowBackgroundColor)))
+                    .clipShape(RoundedRectangle(cornerRadius: 6))
+                    .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color.secondary.opacity(0.3)))
+            )
+            p.contentView = host
+            window.addChildWindow(p, ordered: .above)
+            panel = p
+            position()
+        }
+
+        func position() {
+            guard let field, let window = field.window, let panel else { return }
+            let r = window.convertToScreen(field.convert(field.bounds, to: nil))
+            let rows = min(max(parent.state.items.count, 1), 8)
+            let h = CGFloat(rows) * 21 + 6
+            panel.setFrame(NSRect(x: r.minX, y: r.minY - h - 2, width: 460, height: h), display: true)
+        }
+
+        func hidePanel() {
+            if let panel { panel.parent?.removeChildWindow(panel); panel.orderOut(nil) }
+            panel = nil
+        }
+
+        func finish(_ item: ComboItem?) {
+            guard !done else { return }
+            done = true
+            hidePanel()
+            parent.onCommit(item)
+        }
+
+        func controlTextDidChange(_ n: Notification) {
+            guard let f = n.object as? NSTextField else { return }
+            parent.state.query = f.stringValue
+            position()
+        }
+
+        func control(_ control: NSControl, textView: NSTextView, doCommandBy sel: Selector) -> Bool {
+            switch sel {
+            case #selector(NSResponder.moveDown(_:)): parent.state.move(1); return true
+            case #selector(NSResponder.moveUp(_:)): parent.state.move(-1); return true
+            case #selector(NSResponder.insertNewline(_:)), #selector(NSResponder.insertTab(_:)):
+                finish(parent.state.query.isEmpty && parent.state.highlighted == 0 && field?.stringValue.isEmpty == true ? nil : parent.state.current)
+                return true
+            case #selector(NSResponder.cancelOperation(_:)):
+                done = true; hidePanel(); parent.onCancel(); return true
+            default: return false
+            }
+        }
+
+        func controlTextDidEndEditing(_ n: Notification) {
+            // Clicking a row ends editing first; give the click a moment to land.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { [weak self] in
+                guard let self, !self.done else { return }
+                self.done = true
+                self.hidePanel()
+                self.parent.onCancel()
+            }
+        }
+    }
+}
+
+final class DropdownPanel: NSPanel {
+    override var canBecomeKey: Bool { false }
+    override var canBecomeMain: Bool { false }
+}
+
+final class FirstMouseHostingView<Content: View>: NSHostingView<Content> {
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+}
+#endif

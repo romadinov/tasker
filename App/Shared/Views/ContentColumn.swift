@@ -30,6 +30,7 @@ struct ContentColumn: View {
         @Bindable var model = model
         let sections = model.sections()
         VStack(spacing: 0) {
+            if model.syncStatus.initialSync { FirstSyncBanner() }
             #if os(iOS)
             if sizeClass == .compact { PerspectiveStrip() }
             if model.sidebar == .forecast && model.searchText.isEmpty && sizeClass == .compact { ForecastStrip() }
@@ -435,5 +436,27 @@ struct ForecastHeaderStrip: View {
             }
         }
         .padding(.top, 6)
+    }
+}
+
+/// Shown on a new device while the first download from iCloud runs.
+struct FirstSyncBanner: View {
+    @Environment(AppModel.self) private var model
+    var body: some View {
+        let s = model.syncStatus
+        HStack(spacing: 10) {
+            ProgressView().controlSize(.small)
+            VStack(alignment: .leading, spacing: 1) {
+                Text("Downloading your tasks from iCloud…").font(.callout.weight(.semibold))
+                Text(s.received > 0
+                     ? "\(s.received.formatted()) changes received. The first sync can take a minute; you can keep using the app."
+                     : "Connecting. The first sync can take a minute; you can keep using the app.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            Spacer()
+        }
+        .padding(.horizontal, 14).padding(.vertical, 8)
+        .background(Color.accentColor.opacity(0.12))
+        .overlay(alignment: .bottom) { Divider() }
     }
 }

@@ -24,6 +24,10 @@ public struct SyncStatus: Sendable, Equatable {
     public var missingChanges: Int64 = 0
     public var lastError: String?
     public var lastRepair: Date?
+    /// True on a fresh device until the first full download from iCloud finishes.
+    public var initialSync = false
+    /// Changes received from iCloud in this session (shown during the first sync).
+    public var received = 0
     public var events: [String] = []
     public init() {}
 }
@@ -98,6 +102,8 @@ public final class CloudSync: CKSyncEngineDelegate, @unchecked Sendable {
         engine = e
         if saved == nil {
             e.state.add(pendingDatabaseChanges: [.saveZone(CKRecordZone(zoneID: zoneID))])
+            // Nothing fetched before on this device: everything is about to download.
+            status.initialSync = store.meta("ck.firstSyncDone") == nil
         }
         note("Sync started\(saved == nil ? " (fresh state)" : "")")
         Task { await self.checkAccount() }
@@ -315,6 +321,8 @@ public final class CloudSync: CKSyncEngineDelegate, @unchecked Sendable {
                 }
             }
             note("Fetched \(e.modifications.count) records (\(ops.count) changes), \(e.deletions.count) deletions")
+            update { $0.received += ops.count }
+            publish()
             do {
                 let n = try store.ingest(ops)
                 if n > 0 { note("Merged \(n) changes") }
@@ -386,6 +394,8 @@ public final class CloudSync: CKSyncEngineDelegate, @unchecked Sendable {
             update { $0.phase = .fetching }
         case .didFetchChanges:
             note("Fetch finished; local ops \(store.syncCounts().totalOps)")
+            store.setMeta("ck.firstSyncDone", "1")
+            update { $0.initialSync = false }
             lock.withLock { holdUploadsUntilFetched = false }
             update { $0.phase = .idle; $0.lastFetch = Date(); if case .error = $0.phase {} else { $0.lastError = nil } }
             checkCompleteness()

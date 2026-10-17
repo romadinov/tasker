@@ -199,6 +199,11 @@ import Testing
         #expect(top("ubnf") == "Гитара  Common")
     }
 
+    @Test func typedLayoutBeatsWrongLayoutReading() {
+        let items = ["Я хочу понять dynamic algorithms  Самообразование", "Новые тулы в тулбокс  Самообразование"]
+        #expect(Fuzzy.rank(items, "нт") { $0 }.first == "Новые тулы в тулбокс  Самообразование")
+    }
+
     @Test func noMatchForGarbage() {
         #expect(Fuzzy.score("щщщщщщ", "Гитара  Common") == nil)
     }
@@ -224,5 +229,13 @@ import Testing
         let r = QuickEntryParser(snapshot: s.snapshot()).parse("Струны #hf,jnf #рщьу ::ubnf")
         #expect(r.tagIDs == ["w", "h"])
         #expect(r.projectID == "g")
+    }
+}
+
+@Suite struct HighlightTests {
+    @Test func positions() {
+        #expect(Fuzzy.matchPositions("нт", "Самообразование : Новые тулы в тулбокс") == [18, 24])
+        #expect(Fuzzy.matchPositions("гит", "Common : Гитара") == [9, 10, 11])
+        #expect(Fuzzy.matchPositions("ubn", "Common : Гитара") == [9, 10, 11]) // wrong layout
     }
 }

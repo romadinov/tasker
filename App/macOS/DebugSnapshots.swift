@@ -62,6 +62,17 @@ enum DebugSnapshots {
             NSLog("TASKER-FOCUS first responder: \(String(describing: r.map { type(of: $0) })) inlineField=\(editingField)")
         }))
         steps.append(("forecast-calendar", { model.sidebar = .forecast }))
+        steps.append(("project-combo", {
+            model.sidebar = .inbox
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                if let id = model.sections().flatMap(\.rows).dropFirst(1).first?.id {
+                    model.selection = [id]
+                    model.projectEditingSeed = "нт"
+                    model.projectEditingID = id
+                }
+            }
+        }))
+        steps.append(("project-combo-close", { model.projectEditingID = nil }))
         steps.append(("file-in-place", {
             model.sidebar = .inbox
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
@@ -92,7 +103,7 @@ enum DebugSnapshots {
             let stress = ProcessInfo.processInfo.environment["TASKER_STRESS"] != nil
             DispatchQueue.main.asyncAfter(deadline: .now() + (stress ? 0.15 : 1.2)) {
                 if stress { run(i + 1); return }
-                for (n, w) in NSApp.windows.enumerated() where w.isVisible && w.frame.width > 300 {
+                for (n, w) in NSApp.windows.enumerated() where w.isVisible && (w.frame.width > 300 || w is DropdownPanel) {
                     guard let view = w.contentView?.superview ?? w.contentView,
                           let rep = view.bitmapImageRepForCachingDisplay(in: view.bounds) else { continue }
                     view.cacheDisplay(in: view.bounds, to: rep)

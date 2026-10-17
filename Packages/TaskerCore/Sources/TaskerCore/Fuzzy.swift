@@ -12,9 +12,12 @@ public enum Fuzzy {
         let q = normalize(query).filter { !$0.isWhitespace }
         guard !q.isEmpty else { return 0 }
         let c = normalize(candidate)
-        var best = match(q, c)
+        let direct = match(q, c)
+        // Wrong-layout reading is a fallback: it must clearly beat the query as typed
+        // ("нт" must not prefer "d-yn-amic" over "Новые тулы").
+        var best = direct
         for alt in layoutVariants(q) {
-            if let s = match(alt, c) { best = max(best ?? .min, s - 5) }
+            if let s = match(alt, c) { best = max(best ?? .min, s - 60) }
         }
         return best
     }
@@ -104,6 +107,37 @@ public enum Fuzzy {
         return !words.isEmpty && words.allSatisfy { word in
             layoutAlternatives(word).contains { hay.contains(String(normalize($0))) }
         }
+    }
+
+    /// Character offsets in `candidate` to highlight for `query` (best effort, for display):
+    /// each query letter goes to the next word start that has it, else the next occurrence.
+    /// Tries the wrong-layout conversions too; letters that can't be placed are skipped (typos).
+    public static func matchPositions(_ query: String, _ candidate: String) -> [Int] {
+        let c = normalize(candidate)
+        func place(_ q: [Character]) -> [Int] {
+            var out: [Int] = []
+            var from = 0
+            for ch in q where !ch.isWhitespace {
+                var hit: Int?
+                var j = from
+                while j < c.count {
+                    if c[j] == ch && (j == 0 || !(c[j - 1].isLetter || c[j - 1].isNumber)) { hit = j; break }
+                    j += 1
+                }
+                if hit == nil { hit = c[from...].firstIndex(of: ch) }
+                if let h = hit { out.append(h); from = h + 1 }
+            }
+            return out
+        }
+        let q = normalize(query)
+        var best = place(q)
+        for alt in layoutVariants(q) { let p = place(alt); if p.count > best.count { best = p } }
+        // Prefer a contiguous substring hit when there is one.
+        if let r = String(c).range(of: String(q)), !q.isEmpty {
+            let start = String(c).distance(from: String(c).startIndex, to: r.lowerBound)
+            best = Array(start..<(start + q.count))
+        }
+        return best
     }
 
     // MARK: Keyboard layouts
