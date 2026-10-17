@@ -162,6 +162,12 @@ final class AppModel {
     var collapsedFolders: Set<String> = Set(UserDefaults.standard.stringArray(forKey: "collapsedFolders") ?? []) {
         didSet { UserDefaults.standard.set(Array(collapsedFolders), forKey: "collapsedFolders") }
     }
+    var showSidebar = UserDefaults.standard.object(forKey: "showSidebar") as? Bool ?? true {
+        didSet { UserDefaults.standard.set(showSidebar, forKey: "showSidebar") }
+    }
+    var sidebarWidth: CGFloat = CGFloat(UserDefaults.standard.object(forKey: "sidebarWidth") as? Double ?? 270) {
+        didSet { UserDefaults.standard.set(Double(sidebarWidth), forKey: "sidebarWidth") }
+    }
     var showInspector = UserDefaults.standard.object(forKey: "showInspector") as? Bool ?? true {
         didSet { UserDefaults.standard.set(showInspector, forKey: "showInspector") }
     }

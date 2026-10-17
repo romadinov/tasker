@@ -125,7 +125,8 @@ struct TaskerCommands: Commands {
             Button(model.focusIDs.isEmpty ? "Focus" : "Unfocus") { model.toggleFocus() }.keyboardShortcut("f", modifiers: [.command, .shift])
             Button(model.showInspector ? "Hide Inspector" : "Show Inspector") { model.showInspector.toggle() }.keyboardShortcut("i", modifiers: [.command, .option])
             Divider()
-            Button("Sync Status…") { model.showSyncStatus = true }.keyboardShortcut("s", modifiers: [.command, .control])
+            Button(model.showSidebar ? "Hide Sidebar" : "Show Sidebar") { model.showSidebar.toggle() }.keyboardShortcut("s", modifiers: [.command, .control])
+            Button("Sync Status…") { model.showSyncStatus = true }
             Button("Sync Now") { Task { await model.sync?.syncNow() } }.keyboardShortcut("s", modifiers: [.command, .option])
         }
     }
