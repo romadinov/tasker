@@ -80,6 +80,16 @@ public final class CloudSync: CKSyncEngineDelegate, @unchecked Sendable {
     public func start() {
         lock.lock(); defer { lock.unlock() }
         guard engine == nil else { return }
+        // Engine state belongs to one container. If the container changed, start fresh and
+        // re-upload everything so the new container gets the full history.
+        if store.meta("ck.container") != container.containerIdentifier {
+            if store.meta("ck.container") != nil {
+                note("iCloud container changed; uploading full history to the new one")
+                store.markAllNotUploaded()
+            }
+            store.setMeta("ck.state", nil)
+            store.setMeta("ck.container", container.containerIdentifier)
+        }
         let saved = store.meta("ck.state").flatMap { Data(base64Encoded: $0) }
             .flatMap { try? JSONDecoder().decode(CKSyncEngine.State.Serialization.self, from: $0) }
         var config = CKSyncEngine.Configuration(database: container.privateCloudDatabase, stateSerialization: saved, delegate: self)
