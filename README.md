@@ -60,3 +60,13 @@ Mac app → Settings → Import → *Read from OmniFocus*. This runs an Omni Aut
 | ⌘1–⌘6 | Inbox, Projects, Tags, Forecast, Flagged, Review (⌘7–9: first perspectives) |
 
 Quick-entry shorthand: `#tag ::project ! due:fri defer:tomorrow plan:+3d ~30m`
+
+## MCP server (macOS)
+
+`Tasker.app/Contents/MacOS/tasker-mcp` is a stdio MCP server (dual-era: 2026-07-28 per-request `_meta` and legacy `initialize`). It opens the app's database with its own replica id, so its edits are ordinary CRDT ops: the app merges them immediately and syncs them via iCloud. Setup snippets are in Settings → MCP.
+
+```sh
+claude mcp add --scope user tasker -- "/Applications/Tasker.app/Contents/MacOS/tasker-mcp"
+```
+
+Tools: `list_perspectives`, `get_perspective_items`, `search_tasks`, `get_task`, `list_projects`, `list_tags`, `create_task`, `update_task`, `complete_task`, `drop_task`, `create_project`, `mark_reviewed`. Set `TASKER_DB=/path/to/copy.sqlite` to point it at a test database.
