@@ -1,7 +1,10 @@
 import AppKit
 import ApplicationServices
+import os
 import SwiftUI
 import TaskerCore
+
+private let clipLog = Logger(subsystem: "Tasker", category: "clip")
 
 /// The clipper: captures what you're looking at in the frontmost app.
 /// - Browsers (Safari, Chrome, Arc, Brave, Edge, Vivaldi, Orion): page title + URL (+ selected text)
@@ -12,11 +15,29 @@ import TaskerCore
 /// Normal clip opens Quick Entry pre-filled; Quick Clip saves straight to the Inbox.
 @MainActor
 enum Clipper {
+    enum Problem: CustomStringConvertible {
+        case noAccessibility
+        case selectMessage(String)
+        case info(String)
+        var description: String {
+            switch self {
+            case .noAccessibility: "Tasker needs Accessibility access to link emails and Slack messages. Allow it in System Settings → Privacy & Security → Accessibility."
+            case .selectMessage(let s), .info(let s): s
+            }
+        }
+    }
+    static var problem: Problem?
+
     static func clipFrontmost(quick: Bool = false) {
         let capture = capture()
+        if let problem {
+            Toast.show(problemTitle(problem), detail: problem.description, seconds: 5)
+            if case .noAccessibility = problem { requestAccessibility() }
+        }
         if quick {
             let title = capture.title.isEmpty ? "Clipping" : capture.title
-            if AppModel.shared.quickAdd(title: title, note: capture.note, projectID: nil, tagIDs: [], flagged: false, deferDate: nil, dueDate: nil) != nil {
+            if AppModel.shared.quickAdd(title: title, note: capture.note, projectID: nil, tagIDs: [], flagged: false, deferDate: nil, dueDate: nil) != nil,
+               problem == nil {
                 Toast.show("Clipped to Inbox", detail: title)
             }
         } else {
@@ -29,6 +50,7 @@ enum Clipper {
         let bundle = app?.bundleIdentifier ?? ""
         var capture = AppModel.Capture()
         var link: String?
+        problem = nil
         let selection = selectedText()
 
         switch bundle {
@@ -56,19 +78,31 @@ enum Clipper {
                 if r.count > 2 { capture.note = "From: \(r[2])" }
             }
         case "com.mimestream.Mimestream":
-            // ⌘C on a selected message or thread copies its deep link.
-            if let copied = copyViaKeystroke(keyCode: 8, flags: .maskCommand), let url = firstURL(in: copied) {
-                link = url
+            // ⌘C on a selected message or thread (in the message list) copies its link.
+            if !AXIsProcessTrusted() {
+                problem = .noAccessibility
+            } else if let copied = copyViaKeystroke(keyCode: 8, flags: .maskCommand) {
+                link = copied.url
+                if let t = copied.text, copied.url != nil, !t.isEmpty, firstURL(in: t) == nil { capture.title = String(t.prefix(150)) }
+                if link == nil { problem = .selectMessage("Select the email in Mimestream's message list, then clip.") }
+            } else {
+                problem = .selectMessage("Select the email in Mimestream's message list, then clip.")
             }
-            capture.title = focusedWindowTitle(of: app).map(cleanMimestreamTitle) ?? ""
+            if capture.title.isEmpty { capture.title = focusedWindowTitle(of: app).map(cleanMimestreamTitle) ?? "" }
         case "com.tinyspeck.slackmacgap":
             // "L" copies the link of the highlighted message, but would type into the composer,
             // so only send it when a text field doesn't have focus.
-            if !focusedElementIsTextInput(), let copied = copyViaKeystroke(keyCode: 37, flags: []),
-               let url = firstURL(in: copied), url.contains("slack.com") {
+            if !AXIsProcessTrusted() {
+                problem = .noAccessibility
+            } else if !focusedElementIsTextInput(), let copied = copyViaKeystroke(keyCode: 37, flags: []),
+                      let url = copied.url, url.contains("slack.com") {
                 link = url
             } else if let recent = recentClipboardURL(containing: "slack.com/archives") {
                 link = recent
+            } else if let channel = slackChannelURL(app) {
+                // No highlighted message (e.g. typing in the composer): link to the channel/thread instead.
+                link = channel
+                problem = .info("Linked the Slack channel. To link a single message, hover it (or ↑ to it) before clipping.")
             }
             let channel = focusedWindowTitle(of: app)?.components(separatedBy: " - ").first
             capture.title = channel.map { "Slack: \($0)" } ?? "Slack message"
@@ -88,10 +122,45 @@ enum Clipper {
         if let link, !link.isEmpty {
             capture.note = [link, capture.note].filter { !$0.isEmpty }.joined(separator: "\n\n")
         }
+        clipLog.info("clip app=\(bundle, privacy: .public) trusted=\(AXIsProcessTrusted()) link=\(link ?? "-", privacy: .public) problem=\(String(describing: problem), privacy: .public)")
         return capture
     }
 
     // MARK: Helpers
+
+    static func problemTitle(_ p: Problem) -> String {
+        switch p {
+        case .noAccessibility: "Link not captured"
+        case .selectMessage: "Link not captured"
+        case .info: "Clipped with channel link"
+        }
+    }
+
+    /// The Slack window's current web URL (channel or thread), via Accessibility.
+    static func slackChannelURL(_ app: NSRunningApplication?) -> String? {
+        guard AXIsProcessTrusted(), let pid = app?.processIdentifier else { return nil }
+        let axApp = AXUIElementCreateApplication(pid)
+        var window: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(axApp, kAXFocusedWindowAttribute as CFString, &window) == .success, let window else { return nil }
+        func search(_ el: AXUIElement, depth: Int) -> String? {
+            var role: CFTypeRef?
+            AXUIElementCopyAttributeValue(el, kAXRoleAttribute as CFString, &role)
+            if (role as? String) == "AXWebArea" {
+                var url: CFTypeRef?
+                if AXUIElementCopyAttributeValue(el, kAXURLAttribute as CFString, &url) == .success {
+                    if let u = url as? URL { return u.absoluteString }
+                    if let s = url as? String { return s }
+                }
+            }
+            guard depth < 8 else { return nil }
+            var kids: CFTypeRef?
+            AXUIElementCopyAttributeValue(el, kAXChildrenAttribute as CFString, &kids)
+            for k in (kids as? [AXUIElement]) ?? [] { if let r = search(k, depth: depth + 1) { return r } }
+            return nil
+        }
+        guard let raw = search(window as! AXUIElement, depth: 0), raw.contains("slack.com") else { return nil }
+        return raw
+    }
 
     static func cleanMimestreamTitle(_ t: String) -> String {
         // Window titles look like "Subject — account@gmail.com"; keep the subject.
@@ -113,7 +182,7 @@ enum Clipper {
 
     /// Sends a keystroke to the frontmost app and returns what it put on the clipboard,
     /// then restores the clipboard. Needs Accessibility permission.
-    static func copyViaKeystroke(keyCode: CGKeyCode, flags: CGEventFlags) -> String? {
+    static func copyViaKeystroke(keyCode: CGKeyCode, flags: CGEventFlags) -> (text: String?, url: String?)? {
         guard AXIsProcessTrusted() else { return nil }
         let pb = NSPasteboard.general
         let saved = pb.pasteboardItems?.map { item -> [NSPasteboard.PasteboardType: Data] in
@@ -138,8 +207,27 @@ enum Clipper {
         while pb.changeCount == before && Date() < deadline {
             RunLoop.current.run(until: Date().addingTimeInterval(0.03))
         }
-        guard pb.changeCount != before else { return nil }
-        let result = pb.string(forType: .string) ?? pb.string(forType: .URL)
+        guard pb.changeCount != before else {
+            clipLog.info("keystroke \(keyCode) put nothing on the clipboard")
+            return nil
+        }
+        // Apps put links in different flavours: URL, plain text, or only inside rich text/HTML.
+        let types = pb.types?.map(\.rawValue) ?? []
+        let text = pb.string(forType: .string)
+        var url = pb.string(forType: .URL) ?? pb.string(forType: NSPasteboard.PasteboardType("public.url"))
+        if url == nil, let t = text { url = firstURL(in: t) }
+        if url == nil, let html = pb.string(forType: .html), let r = html.range(of: #"href="([^"]+)""#, options: .regularExpression) {
+            url = String(html[r]).replacingOccurrences(of: "href=\"", with: "").dropLast().description
+        }
+        if url == nil, let rtf = pb.data(forType: .rtf),
+           let a = try? NSAttributedString(data: rtf, options: [.documentType: NSAttributedString.DocumentType.rtf], documentAttributes: nil) {
+            a.enumerateAttribute(.link, in: NSRange(location: 0, length: a.length)) { v, _, stop in
+                if let u = v as? URL { url = u.absoluteString; stop.pointee = true }
+                else if let s = v as? String { url = s; stop.pointee = true }
+            }
+        }
+        clipLog.info("keystroke \(keyCode) clipboard types=\(types.joined(separator: ","), privacy: .public) url=\(url ?? "-", privacy: .public)")
+        let result: (text: String?, url: String?) = (text, url)
         // Put the user's clipboard back.
         pb.clearContents()
         let items = saved.map { dict -> NSPasteboardItem in
@@ -206,9 +294,9 @@ enum Clipper {
 enum Toast {
     private static var panel: NSPanel?
 
-    static func show(_ title: String, detail: String) {
+    static func show(_ title: String, detail: String, seconds: Double = 1.8) {
         panel?.close()
-        let p = NSPanel(contentRect: NSRect(x: 0, y: 0, width: 360, height: 64), styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
+        let p = NSPanel(contentRect: NSRect(x: 0, y: 0, width: 360, height: 90), styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
         p.level = .statusBar
         p.isOpaque = false
         p.backgroundColor = .clear
@@ -218,7 +306,7 @@ enum Toast {
             Image(systemName: "tray.and.arrow.down.fill").font(.title2).foregroundStyle(.tint)
             VStack(alignment: .leading, spacing: 2) {
                 Text(title).font(.headline)
-                Text(detail).font(.callout).foregroundStyle(.secondary).lineLimit(1)
+                Text(detail).font(.callout).foregroundStyle(.secondary).lineLimit(3)
             }
             Spacer(minLength: 0)
         }
@@ -232,7 +320,7 @@ enum Toast {
         }
         p.orderFrontRegardless()
         panel = p
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.8) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + seconds) {
             if panel === p { p.close(); panel = nil }
         }
     }
