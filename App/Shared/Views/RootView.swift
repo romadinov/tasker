@@ -98,6 +98,16 @@ extension RootView {
                 InspectorColumn()
                     .frame(width: model.inspectorWidth)
                     .background(.background.secondary)
+                    .overlay(alignment: .topTrailing) {
+                        Button { model.showInspector = false } label: {
+                            Image(systemName: "xmark").font(.system(size: 10, weight: .bold)).foregroundStyle(.secondary)
+                                .frame(width: 22, height: 22)
+                                .background(Circle().fill(Color.secondary.opacity(0.12)))
+                        }
+                        .buttonStyle(.plain)
+                        .help("Hide Inspector (⌥⌘I)")
+                        .padding(6)
+                    }
                     .transition(.move(edge: .trailing))
             }
         }
@@ -327,7 +337,11 @@ struct InspectorResizeHandle: View {
                         if start == nil { start = model.inspectorWidth }
                         model.inspectorWidth = min(max((start ?? 340) - v.translation.width, 260), 560)
                     }
-                    .onEnded { _ in start = nil }))
+                    .onEnded { v in
+                        // Dragging well past the minimum closes it, like a Mac split view.
+                        if (start ?? 340) - v.translation.width < 200 { model.showInspector = false }
+                        start = nil
+                    }))
     }
 }
 
@@ -370,9 +384,12 @@ struct OmniToolbarCustomizable: CustomizableToolbarContent {
     @Bindable var model: AppModel
 
     var body: some CustomizableToolbarContent {
-        ToolbarItem(id: "sidebar", placement: .navigation) {
-            Button { model.showSidebar.toggle() } label: { Label("Sidebar", systemImage: "sidebar.left") }
-                .help("Show or hide the sidebar")
+        // Only where there is a sidebar to show (not Inbox, Flagged, Nearby, custom perspectives).
+        if (model.sidebar ?? .inbox).hasSidebarContent {
+            ToolbarItem(id: "sidebar", placement: .navigation) {
+                Button { model.showSidebar.toggle() } label: { Label("Sidebar", systemImage: "sidebar.left") }
+                    .help("Show or hide the sidebar")
+            }
         }
         ToolbarItem(id: "back", placement: .navigation) {
             Button { model.goBack() } label: { Label("Back", systemImage: "chevron.left") }.disabled(!model.canGoBack)

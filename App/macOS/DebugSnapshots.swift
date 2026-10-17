@@ -74,8 +74,44 @@ enum DebugSnapshots {
         }))
         steps.append(("tags-combo", { if let id = model.selection.first { model.inlineField = .init(id: id, field: .tags) } }))
         steps.append(("flag-focus", { if let id = model.selection.first { model.inlineField = .init(id: id, field: .flag) } }))
-        steps.append(("inspector-off", { model.inlineField = nil; model.showInspector = false }))
-        steps.append(("inspector-on", { model.showInspector = true }))
+        steps.append(("inspector-menu-off", {
+            model.inlineField = nil
+            // Press the real menu item, as the user would.
+            func find(_ menu: NSMenu?) -> NSMenuItem? {
+                for item in menu?.items ?? [] {
+                    if item.title.contains("Inspector") { return item }
+                    if let f = find(item.submenu) { return f }
+                }
+                return nil
+            }
+            if let item = find(NSApp.mainMenu), let menu = item.menu {
+                menu.performActionForItem(at: menu.index(of: item))
+                NSLog("TASKER-INSP pressed menu '\(item.title)' → showInspector=\(model.showInspector)")
+            } else { NSLog("TASKER-INSP menu item not found") }
+        }))
+        steps.append(("inspector-toolbar-on", {
+            // Press the real toolbar button.
+            let w = NSApp.windows.first { $0.frame.width > 600 }
+            let items = w?.toolbar?.items ?? []
+            NSLog("TASKER-INSP toolbar items: \(items.map { $0.itemIdentifier.rawValue })")
+            for it in items where ["inspect", "newAction"].contains(it.itemIdentifier.rawValue) {
+                NSLog("TASKER-INSP item \(it.itemIdentifier.rawValue) action=\(String(describing: it.action)) target=\(String(describing: it.target)) view=\(String(describing: it.view.map { type(of: $0) })) button=\(findButton(it.view) != nil)")
+            }
+            if let item = items.first(where: { $0.itemIdentifier.rawValue == "inspect" }), let v = item.view, let win = v.window {
+                // A real click: mouse down/up at the button's centre, routed through the window.
+                let before = model.showInspector
+                let p = v.convert(NSPoint(x: v.bounds.midX, y: v.bounds.midY), to: nil)
+                for type in [NSEvent.EventType.leftMouseDown, .leftMouseUp] {
+                    if let e = NSEvent.mouseEvent(with: type, location: p, modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime,
+                                                  windowNumber: win.windowNumber, context: nil, eventNumber: 0, clickCount: 1, pressure: 1) {
+                        win.sendEvent(e)
+                    }
+                }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                    NSLog("TASKER-INSP clicked toolbar Inspect: \(before) → \(model.showInspector)")
+                }
+            } else { NSLog("TASKER-INSP toolbar item not found") }
+        }))
         steps.append(("file-in-place", {
             model.sidebar = .inbox
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
@@ -123,6 +159,13 @@ enum DebugSnapshots {
         }
     }
 }
+func findButton(_ v: NSView?) -> NSButton? {
+    guard let v else { return nil }
+    if let b = v as? NSButton { return b }
+    for s in v.subviews { if let b = findButton(s) { return b } }
+    return nil
+}
+
 func findTable(_ v: NSView) -> NSView? {
     if v is NSTableView { return v }
     for s in v.subviews { if let t = findTable(s) { return t } }
