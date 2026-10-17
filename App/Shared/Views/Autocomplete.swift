@@ -128,11 +128,12 @@ enum Lookup {
             let hits = remaining.filter { p in
                 let path = s.folderPath(of: p.id).map { $0.lowercased() }
                 let foldersMatch = fs.allSatisfy { f in path.contains { $0.hasPrefix(f) } }
-                return foldersMatch && (n.isEmpty || p.title.lowercased().contains(n))
+                return foldersMatch && (n.isEmpty || Fuzzy.score(n, p.title) != nil)
             }
-            ranked = rank(hits, name, title: \.title)
+            ranked = name.isEmpty ? hits : Fuzzy.rank(hits, name) { $0.title }
         } else {
-            ranked = rank(remaining, q, title: \.title)
+            // Fuzzy over "title  folders" — title first so it weighs most ("тлб" → "Новые тулы в тулбокс").
+            ranked = Fuzzy.rank(remaining, q) { p in ([p.title] + s.folderPath(of: p.id)).joined(separator: "  ") }
         }
         return ranked.map {
             Suggestion(id: $0.id, title: $0.title, subtitle: s.folderPath(of: $0.id).joined(separator: " : "),
@@ -148,7 +149,8 @@ enum Lookup {
 
     static func tags(_ s: Snapshot, _ q: String, excluding: Set<String> = []) -> [Suggestion] {
         let tags = s.orderedTags.map(\.tag).filter { $0.status != .dropped && !excluding.contains($0.id) }
-        return rank(tags, q, title: \.name).map { t in
+        let ranked = Fuzzy.rank(tags, q) { t in [t.name, t.position.parent.flatMap { s.tags[$0]?.name } ?? ""].joined(separator: "  ") }
+        return ranked.map { t in
             let parent = t.position.parent.flatMap { s.tags[$0]?.name }
             return Suggestion(id: t.id, title: t.name, subtitle: parent, icon: "tag")
         }

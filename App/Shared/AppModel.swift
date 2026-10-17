@@ -674,11 +674,8 @@ final class AppModel {
     }
 
     func searchSections() -> [OutlineSection] {
-        let terms = searchText.lowercased().split(separator: " ")
-        let hits = snapshot.tasks.values.filter { t in
-            let hay = (t.title + " " + t.note).lowercased()
-            return terms.allSatisfy { hay.contains($0) }
-        }
+        // Matches in either keyboard layout, so "ubnfhf" finds "гитара".
+        let hits = snapshot.tasks.values.filter { t in Fuzzy.containsAllWords(searchText, in: t.title + " " + t.note) }
         let remaining = hits.filter { snapshot.info[$0.id]?.isRemaining == true }.map(\.id)
         let done = hits.filter { snapshot.info[$0.id]?.isRemaining != true }.map(\.id)
         let engine = PerspectiveEngine(snapshot)

@@ -166,3 +166,63 @@ import Testing
         #expect(r.title == "Buy bread")
     }
 }
+
+@Suite struct FuzzyTests {
+    // Match text is "title  folder path" (title first, so it carries the most weight).
+    let projects = ["Новые тулы в тулбокс  Самообразование", "SEEK  Работа", "Рутина  Работа", "Домашняя рутина  Common",
+                    "Дема для SF  Работа", "Гитара  Common", "Важная рутина  High", "Программирование  Common"]
+
+    func top(_ q: String) -> String? { Fuzzy.rank(projects, q) { $0 }.first }
+
+    @Test func subsequenceAndWordStarts() {
+        #expect(top("тлб") == "Новые тулы в тулбокс  Самообразование")
+        #expect(top("нтт") == "Новые тулы в тулбокс  Самообразование")
+        #expect(top("дем") == "Дема для SF  Работа")
+        #expect(top("гит") == "Гитара  Common")
+        #expect(top("seek") == "SEEK  Работа")
+    }
+
+    @Test func prefixBeatsScattered() {
+        // "рут" should prefer a word starting with рут over scattered letters.
+        let r = Fuzzy.rank(projects, "рут") { $0 }
+        #expect(r.first?.hasPrefix("Рутина") == true)
+    }
+
+    @Test func typoTolerance() {
+        // One letter not present (the user's example): still finds the toolbox project.
+        #expect(Fuzzy.rank(projects, "Трр") { $0 }.contains("Новые тулы в тулбокс  Самообразование"))
+        #expect(top("тулбкос") == "Новые тулы в тулбокс  Самообразование") // transposition-ish typo
+    }
+
+    @Test func wrongKeyboardLayout() {
+        #expect(top("nekb") == "Новые тулы в тулбокс  Самообразование") // "тулы" typed with EN layout
+        #expect(top("ubnf") == "Гитара  Common")
+    }
+
+    @Test func noMatchForGarbage() {
+        #expect(Fuzzy.score("щщщщщщ", "Гитара  Common") == nil)
+    }
+}
+
+@Suite struct LayoutTests {
+    @Test func searchInEitherLayout() {
+        #expect(Fuzzy.containsAllWords("ubnfhf", in: "Купить струны для гитары") == false) // "гитара" ≠ "гитары"
+        #expect(Fuzzy.containsAllWords("ubnfh", in: "Купить струны для гитары"))          // "гитар"
+        #expect(Fuzzy.containsAllWords("руддщ", in: "Say hello to Anna"))                  // RU layout typed for "hello"
+        #expect(Fuzzy.containsAllWords("Struny", in: "Купить струны") == false)            // transliteration isn't layout
+        #expect(Fuzzy.containsAllWords("ЕРУ ыщгксу", in: "Learn the SOURCE"))             // both words typed on RU layout
+        #expect(Fuzzy.containsAllWords("еру source", in: "Learn the SOURCE"))             // switched layout mid-query
+    }
+
+    @Test func tagsAndProjectsFromWrongLayout() throws {
+        let s = try tempStore()
+        s.transact { tx in
+            tx.createTag("Работа", id: "w"); tx.createTag("Home", id: "h")
+            var p = NewTask(title: "Гитара"); p.isProject = true
+            tx.createTask(p, id: "g")
+        }
+        let r = QuickEntryParser(snapshot: s.snapshot()).parse("Струны #hf,jnf #рщьу ::ubnf")
+        #expect(r.tagIDs == ["w", "h"])
+        #expect(r.projectID == "g")
+    }
+}

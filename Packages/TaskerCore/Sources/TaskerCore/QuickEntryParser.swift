@@ -59,8 +59,12 @@ public struct QuickEntryParser {
 
     func matchTag(_ name: String) -> String? {
         let n = name.lowercased().replacingOccurrences(of: "_", with: " ")
-        let tags = snapshot.tags.values.filter { $0.status != .dropped }
-        return (tags.first { $0.name.lowercased() == n } ?? tags.first { $0.name.lowercased().hasPrefix(n) })?.id
+        let tags = snapshot.orderedTags.map(\.tag).filter { $0.status != .dropped }
+        if let exact = tags.first(where: { $0.name.lowercased() == n }) { return exact.id }
+        if let prefix = tags.first(where: { $0.name.lowercased().hasPrefix(n) }) { return prefix.id }
+        // Fuzzy only for 3+ letters, so a short new tag like "#ab" isn't swallowed by an unrelated one.
+        guard n.count >= 3 else { return nil }
+        return Fuzzy.rank(tags, n) { $0.name }.first?.id
     }
 
     func matchProject(_ name: String) -> String? {
@@ -79,7 +83,7 @@ public struct QuickEntryParser {
         let projects = snapshot.orderedProjects.filter { snapshot.info[$0.id]?.isRemaining == true }
         if let p = projects.first(where: { $0.title.lowercased() == n }) { return p.id }
         if let p = projects.first(where: { $0.title.lowercased().hasPrefix(n) }) { return p.id }
-        return projects.first(where: { $0.title.lowercased().contains(n) })?.id
+        return Fuzzy.rank(projects, n) { p in ([p.title] + snapshot.folderPath(of: p.id)).joined(separator: "  ") }.first?.id
     }
 
     static func minutes(_ s: String) -> Int? {

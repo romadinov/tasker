@@ -138,8 +138,8 @@ public struct PerspectiveEngine {
             return true
         }
         if let terms = o["actionMatchingSearch"]?.array?.compactMap(\.string) {
-            let hay = (t.title + " " + t.note).lowercased()
-            return terms.allSatisfy { term in term.lowercased().split(separator: " ").allSatisfy { hay.contains($0) } }
+            let hay = t.title + " " + t.note
+            return terms.allSatisfy { Fuzzy.containsAllWords($0, in: hay) }
         }
         if let d = o["actionHasDuration"] {
             guard let e = t.estimatedMinutes else { return false }
