@@ -42,7 +42,14 @@ enum DebugSnapshots {
         steps.append(("inspector-autocomplete", {
             model.editingPerspective = nil
             model.sidebar = .inbox
-            if let id = model.snapshot.inboxIDs.first(where: { model.snapshot.info[$0]?.isRemaining == true }) { model.selection = [id] }
+            if let id = model.snapshot.inboxIDs.first(where: { model.snapshot.info[$0]?.isRemaining == true }) {
+                model.selection = [id]
+                // Give the list keyboard focus so the selection is drawn emphasised (blue), as when you click it.
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                    if let w = NSApp.windows.first(where: { $0.frame.width > 600 }),
+                       let table = w.contentView.flatMap({ findTable($0) }) { w.makeFirstResponder(table) }
+                }
+            }
         }))
         steps.append(("new-action", {
             NSApp.activate(ignoringOtherApps: true)
@@ -71,7 +78,16 @@ enum DebugSnapshots {
                 run(i + 1)
             }
         }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2) { run(0) }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+            NSApp.activate(ignoringOtherApps: true)
+            NSApp.windows.first { $0.frame.width > 600 }?.makeKeyAndOrderFront(nil)
+            run(0)
+        }
     }
+}
+func findTable(_ v: NSView) -> NSView? {
+    if v is NSTableView { return v }
+    for s in v.subviews { if let t = findTable(s) { return t } }
+    return nil
 }
 #endif
