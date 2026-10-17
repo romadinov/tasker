@@ -39,6 +39,8 @@ struct OutlineRow: Identifiable, Hashable {
     let expanded: Bool
     /// Show the project name under the title (flat lists such as perspectives).
     let showContext: Bool
+    /// False when the section header already names the project.
+    var showProject = true
 }
 
 struct OutlineSection: Identifiable {
@@ -242,6 +244,8 @@ final class AppModel {
             if t.isProject { n.parent = s; n.placement = .end }
             else { n.parent = snapshot.info[s]?.parentID; n.placement = .after(s); n.tagIDs = t.tagIDs.filter { _ in sidebar == .tags } }
         }
+        // With nothing selected a new inbox item goes on top, where it's visible immediately.
+        if !isProject && n.parent == nil && selected == nil { n.placement = .start }
         if sidebar == .flagged { n.flagged = true }
         if sidebar == .forecast {
             n.dueDate = Calendar.current.date(bySettingHour: 17, minute: 0, second: 0, of: forecastDay)
@@ -482,7 +486,7 @@ final class AppModel {
             }
         case .flagged:
             return PerspectiveEngine(snapshot).group(PerspectiveEngine(snapshot).sort(flaggedIDs(), by: .due), by: .project).map {
-                OutlineSection(id: $0.id, title: $0.title, rows: flat($0.taskIDs))
+                OutlineSection(id: $0.id, title: $0.title, rows: flat($0.taskIDs, showProject: $0.id == "inbox"))
             }
         case .review:
             let projects = snapshot.orderedProjects.filter { snapshot.projectInfo[$0.id]?.needsReview == true || recentlyCompleted.contains($0.id) }
@@ -495,16 +499,18 @@ final class AppModel {
             guard let p = snapshot.perspectives.first(where: { $0.id == pid }) else { return [] }
             let sections = PerspectiveEngine(snapshot).evaluate(p)
             let extra = recentlyCompleted.filter { id in !sections.contains { $0.taskIDs.contains(id) } }
-            var result = sections.map { OutlineSection(id: $0.id, title: $0.title, rows: flat($0.taskIDs)) }
+            let byProject = p.groupBy == .project
+            var result = sections.map { OutlineSection(id: $0.id, title: $0.title, rows: flat($0.taskIDs, showProject: !byProject || $0.id == "inbox")) }
             if !extra.isEmpty { result.append(OutlineSection(id: "recent", title: "Just completed", rows: flat(Array(extra).sorted()))) }
             return result
         }
     }
 
-    func flat(_ ids: [String]) -> [OutlineRow] {
+    func flat(_ ids: [String], showProject: Bool = true) -> [OutlineRow] {
         ids.compactMap { id in
             guard let t = snapshot.tasks[id] else { return nil }
-            return OutlineRow(id: id, kind: t.isProject ? .project : .task, depth: 0, hasChildren: false, expanded: false, showContext: true)
+            return OutlineRow(id: id, kind: t.isProject ? .project : .task, depth: 0, hasChildren: false, expanded: false,
+                              showContext: true, showProject: showProject)
         }
     }
 

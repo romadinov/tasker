@@ -38,6 +38,17 @@ enum DebugSnapshots {
             model.sidebar = .inbox
             if let id = model.snapshot.inboxIDs.first { model.selection = [id] }
         }))
+        steps.append(("new-action", {
+            NSApp.activate(ignoringOtherApps: true)
+            NSApp.windows.first { $0.frame.width > 600 }?.makeKeyAndOrderFront(nil)
+            model.sidebar = .inbox; model.selection = []; model.newTask()
+        }))
+        steps.append(("new-action-focus", {
+            let r = NSApp.windows.first { $0.frame.width > 600 }?.firstResponder
+            let editingField = (r as? NSTextView)?.delegate is AutoFocusTextField
+            NSLog("TASKER-FOCUS first responder: \(String(describing: r.map { type(of: $0) })) inlineField=\(editingField)")
+        }))
+        steps.append(("forecast-calendar", { model.sidebar = .forecast }))
         steps.append(("quick-entry", { model.editingPerspective = nil; QuickEntryController.shared.show(capture: .init(title: "Call Anna #pho ::home due:fri", note: "")) }))
 
         func run(_ i: Int) {

@@ -24,6 +24,14 @@ struct ContentColumn: View {
             if model.sidebar == .forecast && model.searchText.isEmpty { ForecastStrip() }
             ScrollViewReader { proxy in
             List(selection: $model.selection) {
+                if model.sidebar == .forecast && model.searchText.isEmpty {
+                    let events = forecastEvents
+                    if !events.isEmpty {
+                        Section("Calendar") {
+                            ForEach(events) { EventRow(event: $0).selectionDisabled() }
+                        }
+                    }
+                }
                 ForEach(sections) { section in
                     if section.title.isEmpty {
                         rows(section.rows)
@@ -31,7 +39,7 @@ struct ContentColumn: View {
                         Section(section.title) { rows(section.rows) }
                     }
                 }
-                if sections.allSatisfy({ $0.rows.isEmpty }) {
+                if sections.allSatisfy({ $0.rows.isEmpty }) && !(model.sidebar == .forecast && !forecastEvents.isEmpty) {
                     emptyState
                 }
             }
@@ -57,7 +65,13 @@ struct ContentColumn: View {
                 ItemContextMenu(ids: Array(ids))
             }
             .onChange(of: model.editingID) { _, id in
-                if let id { withAnimation { proxy.scrollTo(id, anchor: .center) } }
+                guard let id else { return }
+                // The row only exists after the list has diffed in the new snapshot.
+                for delay in [0.0, 0.08, 0.25] {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+                        if model.editingID == id { proxy.scrollTo(id, anchor: .center) }
+                    }
+                }
             }
             }
         }
@@ -81,6 +95,17 @@ struct ContentColumn: View {
         #if DEBUG
         .task { DebugHooks.run(model) { addAction() } }
         #endif
+    }
+
+    var forecastEvents: [CalendarModel.Event] {
+        let day = model.forecastDay
+        if day == .distantPast { return [] }
+        if day == .distantFuture {
+            let cal = Calendar.current
+            let start = cal.date(byAdding: .day, value: 7, to: cal.startOfDay(for: Date()))!
+            return CalendarModel.shared.events(from: start, to: cal.date(byAdding: .day, value: 30, to: start)!)
+        }
+        return CalendarModel.shared.events(on: day)
     }
 
     /// The toolbar "+" (and the debug hook) go through here.
@@ -154,6 +179,7 @@ struct ContentColumn: View {
 
 struct ForecastStrip: View {
     @Environment(AppModel.self) private var model
+    @State private var calendar = CalendarModel.shared
 
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
@@ -164,9 +190,14 @@ struct ForecastStrip: View {
                         VStack(spacing: 2) {
                             Text(day.label).font(.caption.weight(.semibold))
                             Text(day.sublabel.isEmpty ? " " : day.sublabel).font(.title3.monospacedDigit())
-                            Text(day.count > 0 ? "\(day.count)" : " ")
-                                .font(.caption2.monospacedDigit())
-                                .foregroundStyle(day.isPast && day.count > 0 ? Palette.overdue : .secondary)
+                            HStack(spacing: 3) {
+                                Text(day.count > 0 ? "\(day.count)" : " ")
+                                    .font(.caption2.monospacedDigit())
+                                    .foregroundStyle(day.isPast && day.count > 0 ? Palette.overdue : .secondary)
+                                if !day.isPast && day.id != .distantFuture && !CalendarModel.shared.events(on: day.id).isEmpty {
+                                    Image(systemName: "calendar").font(.system(size: 8)).foregroundStyle(.secondary)
+                                }
+                            }
                         }
                         .frame(width: 56, height: 64)
                         .background(RoundedRectangle(cornerRadius: 10).fill(selected ? Color.accentColor.opacity(0.18) : Color.secondary.opacity(0.06)))
@@ -176,6 +207,9 @@ struct ForecastStrip: View {
                 }
             }
             .padding(.horizontal, 12).padding(.vertical, 8)
+        }
+        .task {
+            if calendar.enabled && calendar.status == .notDetermined { await calendar.requestAccess() }
         }
     }
 }

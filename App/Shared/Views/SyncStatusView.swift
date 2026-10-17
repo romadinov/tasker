@@ -108,6 +108,7 @@ struct SettingsView: View {
             Section("Sync") {
                 Button("Sync status…") { model.showSyncStatus = true }
             }
+            CalendarSettingsSection()
             Section("Dates") {
                 Stepper("Due soon: \(model.snapshot.setting("dueSoonDays")?.int ?? 2) days",
                         value: Binding(get: { model.snapshot.setting("dueSoonDays")?.int ?? 2 },

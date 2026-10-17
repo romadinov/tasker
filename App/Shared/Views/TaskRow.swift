@@ -31,13 +31,15 @@ struct TaskRow: View {
                             .onTapGesture(count: 2) { model.selection = [t.id]; model.editingID = t.id }
                             #endif
                     }
-                    MetadataLine(task: t, info: i, showContext: row.showContext)
+                    MetadataLine(task: t, info: i, showContext: row.showContext, showProject: row.showProject,
+                                 selected: model.selection.contains(t.id) && model.selection.count == 1)
                 }
                 Spacer(minLength: 0)
                 if t.isProject, let pi = s.projectInfo[t.id], pi.remainingCount > 0 {
                     Text("\(pi.availableCount)/\(pi.remainingCount)")
                         .font(.caption.monospacedDigit()).foregroundStyle(.secondary)
                 }
+                if !t.isProject { FlagButton(task: t, effective: i.effectiveFlagged) }
             }
             .padding(.leading, CGFloat(row.depth) * 18)
             .padding(.vertical, 2)
@@ -101,6 +103,8 @@ struct MetadataLine: View {
     let task: TaskItem
     let info: TaskInfo
     let showContext: Bool
+    var showProject = true
+    var selected = false
 
     var body: some View {
         let s = model.snapshot
@@ -116,11 +120,12 @@ struct MetadataLine: View {
 
     func items(_ s: Snapshot) -> [AnyView] {
         var out: [AnyView] = []
-        if showContext, !task.isProject {
-            if let p = info.projectID, let project = s.tasks[p] {
-                out.append(AnyView(Badge(text: project.title, systemImage: "circle.grid.2x2", color: Palette.project)))
-            } else {
-                out.append(AnyView(Badge(text: "Inbox", systemImage: "tray")))
+        if !task.isProject {
+            // Editable in place: click the project or a tag to change it.
+            if showContext && showProject {
+                out.append(AnyView(ProjectChip(task: task)))
+            } else if selected && info.projectID == nil {
+                out.append(AnyView(ProjectChip(task: task, placeholder: true)))
             }
         }
         if let due = info.effectiveDue, !task.isCompleted {
@@ -138,10 +143,11 @@ struct MetadataLine: View {
         if let c = task.completedAt, task.isCompleted {
             out.append(AnyView(Badge(text: Fmt.relative(c, now: s.now), systemImage: "checkmark")))
         }
-        for name in s.tagNames(task.tagIDs) {
-            out.append(AnyView(Badge(text: name, color: Palette.tag)))
+        if !task.isProject && (!task.tagIDs.isEmpty || selected) {
+            out.append(AnyView(TagChips(task: task, showAdd: selected)))
+        } else if task.isProject {
+            for name in s.tagNames(task.tagIDs) { out.append(AnyView(Badge(text: name, color: Palette.tag))) }
         }
-        if task.flagged { out.append(AnyView(Image(systemName: "flag.fill").font(.caption).foregroundStyle(Palette.flag))) }
         if task.repeatRule != nil { out.append(AnyView(Image(systemName: "repeat").font(.caption).foregroundStyle(.secondary))) }
         if let e = task.estimatedMinutes { out.append(AnyView(Badge(text: Fmt.estimate(e), systemImage: "clock"))) }
         if !task.note.isEmpty { out.append(AnyView(Image(systemName: "note.text").font(.caption).foregroundStyle(.secondary))) }
@@ -160,10 +166,20 @@ struct InlineTitleEditor: View {
     @Environment(AppModel.self) private var model
     let task: TaskItem
     @State private var text = ""
+    @State private var hadFocus = false
     @FocusState private var focused: Bool
 
+    private var placeholder: String { task.isProject ? "Project name" : "New action  (#tag ::project ! due:fri)" }
+
     var body: some View {
-        TextField(task.isProject ? "Project name" : "New action  (#tag ::project ! due:fri)", text: $text)
+        #if os(macOS)
+        InlineTextField(text: $text, placeholder: placeholder, bold: task.isProject,
+                        onSubmit: { model.commitInline(task.id, title: text, continueWithNew: !text.trimmingCharacters(in: .whitespaces).isEmpty) },
+                        onCancel: { model.commitInline(task.id, title: text, continueWithNew: false) },
+                        onEndEditing: { if model.editingID == task.id { model.commitInline(task.id, title: text, continueWithNew: false) } })
+            .onAppear { text = task.title }
+        #else
+        TextField(placeholder, text: $text)
             .textFieldStyle(.plain)
             .focused($focused)
             .onAppear {
@@ -172,10 +188,9 @@ struct InlineTitleEditor: View {
             }
             .onSubmit { model.commitInline(task.id, title: text, continueWithNew: !text.trimmingCharacters(in: .whitespaces).isEmpty) }
             .onChange(of: focused) { _, isFocused in
-                if !isFocused && model.editingID == task.id { model.commitInline(task.id, title: text, continueWithNew: false) }
+                if isFocused { hadFocus = true }
+                if !isFocused && hadFocus && model.editingID == task.id { model.commitInline(task.id, title: text, continueWithNew: false) }
             }
-            #if os(macOS)
-            .onExitCommand { model.commitInline(task.id, title: text, continueWithNew: false) }
-            #endif
+        #endif
     }
 }
