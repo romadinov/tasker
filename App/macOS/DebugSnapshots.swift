@@ -12,6 +12,12 @@ enum DebugSnapshots {
         var steps: [(String, () -> Void)] = [
             ("inbox", { model.sidebar = .inbox }),
             ("projects", { model.sidebar = .projects; model.expanded.formUnion(model.snapshot.libraryIDs.prefix(4)) }),
+            ("project-focus", {
+                if let p = model.snapshot.orderedProjects.first(where: { (model.snapshot.projectInfo[$0.id]?.remainingCount ?? 0) > 3 }) {
+                    model.projectFocus = [p.id]
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { model.selection = [p.id] }
+                }
+            }),
             ("project-selected", {
                 if let p = model.snapshot.orderedProjects.first(where: { model.snapshot.info[$0.id]?.isRemaining == true && (model.snapshot.projectInfo[$0.id]?.remainingCount ?? 0) > 2 }) {
                     var cur: String? = model.snapshot.projectInfo[p.id]?.folderID

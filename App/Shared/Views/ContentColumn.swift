@@ -19,11 +19,16 @@ struct ContentColumn: View {
         let sections = model.sections()
         VStack(spacing: 0) {
             #if os(iOS)
-            PerspectiveStrip()
+            if sizeClass == .compact { PerspectiveStrip() }
+            if model.sidebar == .forecast && model.searchText.isEmpty && sizeClass == .compact { ForecastStrip() }
             #endif
-            if model.sidebar == .forecast && model.searchText.isEmpty { ForecastStrip() }
             ScrollViewReader { proxy in
             List(selection: $model.selection) {
+                if !isCompactWidth {
+                    PerspectiveHeader(sections: sections)
+                        .listRowSeparator(.hidden)
+                        .selectionDisabled()
+                }
                 if model.sidebar == .forecast && model.searchText.isEmpty {
                     let events = forecastEvents
                     if !events.isEmpty {
@@ -90,10 +95,22 @@ struct ContentColumn: View {
         }
         #endif
         .navigationTitle(title)
+        #if os(iOS)
+        .navigationBarTitleDisplayMode(isCompactWidth ? .automatic : .inline)
+        .toolbar { if !isCompactWidth { OmniToolbar(model: model) } }
+        #endif
         .searchable(text: $model.searchText, placement: .toolbar, prompt: "Search everything")
         .toolbar { toolbar }
         #if DEBUG
         .task { DebugHooks.run(model) { addAction() } }
+        #endif
+    }
+
+    var isCompactWidth: Bool {
+        #if os(iOS)
+        sizeClass == .compact
+        #else
+        false
         #endif
     }
 
@@ -145,7 +162,7 @@ struct ContentColumn: View {
     @ToolbarContentBuilder
     var toolbar: some ToolbarContent {
         ToolbarItemGroup(placement: .primaryAction) {
-            if model.sidebar == .projects || model.sidebar == .tags {
+            if (model.sidebar == .projects && isCompactWidth) || model.sidebar == .tags {
                 Menu {
                     @Bindable var model = model
                     if model.sidebar == .projects {
@@ -158,15 +175,17 @@ struct ContentColumn: View {
             if case .perspective(let id) = model.sidebar, let p = model.snapshot.perspectives.first(where: { $0.id == id }) {
                 Button { model.editingPerspective = p } label: { Label("Edit Perspective", systemImage: "slider.horizontal.3") }
             }
-            if model.sidebar == .projects {
+            if model.sidebar == .projects && isCompactWidth {
                 Menu {
                     Button("New Project") { model.newTask(isProject: true) }
                     Button("New Folder") { model.newFolder() }
                 } label: { Label("New", systemImage: "folder.badge.plus") }
             }
             #if os(iOS)
-            Button { model.cleanUp() } label: { Label("Clean Up", systemImage: "wand.and.sparkles") }
-            Button { addAction() } label: { Label("New Action", systemImage: "plus") }
+            if sizeClass == .compact {
+                Button { model.cleanUp() } label: { Label("Clean Up", systemImage: "wand.and.sparkles") }
+                Button { addAction() } label: { Label("New Action", systemImage: "plus") }
+            }
             #endif
             #if os(iOS)
             if sizeClass != .compact {
@@ -296,5 +315,111 @@ struct ItemContextMenu: View {
         }
         Divider()
         Button("Delete", role: .destructive) { model.deleteItems(ids) }
+    }
+}
+
+/// Big OmniFocus-style title with a count, at the top of the main list.
+struct PerspectiveHeader: View {
+    @Environment(AppModel.self) private var model
+    let sections: [OutlineSection]
+
+    var body: some View {
+        let item = model.sidebar ?? .inbox
+        let rows = sections.flatMap(\.rows)
+        VStack(alignment: .leading, spacing: 2) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(title(item))
+                    .font(.system(size: 30, weight: .bold))
+                    .foregroundStyle(item.tint.gradient)
+                Spacer()
+                if item == .review && model.searchText.isEmpty && !model.reviewProjects.isEmpty {
+                    Button { model.reviewStep(-1) } label: { Image(systemName: "chevron.up") }
+                        .buttonStyle(.borderless).help("Previous project")
+                    Button { model.reviewStep(1) } label: { Image(systemName: "chevron.down") }
+                        .buttonStyle(.borderless).help("Next project")
+                    Button("Mark Reviewed") { model.markReviewedAndAdvance() }
+                        .buttonStyle(.borderedProminent)
+                        .tint(.indigo)
+                        .keyboardShortcut("r", modifiers: [.command, .shift])
+                        .disabled(model.projectFocus.first.flatMap { model.snapshot.tasks[$0] }?.isProject != true)
+                }
+            }
+            if !model.focusIDs.isEmpty {
+                HStack(spacing: 6) {
+                    Image(systemName: "scope")
+                    Text("Focused on " + model.focusIDs.compactMap { model.snapshot.tasks[$0]?.title ?? model.snapshot.folders[$0]?.name }.sorted().joined(separator: ", "))
+                        .lineLimit(1)
+                    Button { model.focusIDs = [] } label: { Image(systemName: "xmark.circle.fill") }.buttonStyle(.borderless)
+                }
+                .font(.caption.weight(.medium))
+                .padding(.horizontal, 8).padding(.vertical, 3)
+                .background(Capsule().fill(Color.accentColor.opacity(0.15)))
+            }
+            if item == .forecast && model.searchText.isEmpty {
+                ForecastHeaderStrip()
+            } else {
+                Text(subtitle(item, rows)).font(.subheadline.weight(.medium)).foregroundStyle(.secondary)
+            }
+        }
+        .padding(.top, 6).padding(.bottom, 4)
+    }
+
+    func title(_ item: SidebarItem) -> String {
+        if !model.searchText.isEmpty { return "Search" }
+        switch item {
+        case .perspective(let id): return model.snapshot.perspectives.first { $0.id == id }?.name ?? "Perspective"
+        case .forecast: return "Forecast"
+        default: return item.title
+        }
+    }
+
+    func subtitle(_ item: SidebarItem, _ rows: [OutlineRow]) -> String {
+        let s = model.snapshot
+        let projects = rows.filter { $0.kind == .project }.count
+        let actions = rows.filter { $0.kind == .task }.count
+        if item == .review, let id = model.projectFocus.first, let p = s.tasks[id] {
+            let list = model.reviewProjects
+            let i = (list.firstIndex { $0.id == id } ?? 0) + 1
+            var parts = ["Project \(i) of \(list.count)", (p.reviewInterval ?? .weekly).label.replacingOccurrences(of: "Every", with: "Review every")]
+            if let l = p.lastReviewDate { parts.append("Last reviewed \(l.formatted(date: .numeric, time: .omitted))") }
+            return parts.joined(separator: " • ")
+        }
+        if !model.projectFocus.isEmpty && (item == .projects || item == .review) {
+            let n = model.projectFocus.count
+            return n == 1 ? (s.tasks[model.projectFocus.first!]?.title ?? s.folders[model.projectFocus.first!]?.name ?? "1 selected") : "\(n) selected"
+        }
+        var parts: [String] = []
+        if projects > 0 { parts.append(projects == 1 ? "1 project" : "\(projects) projects") }
+        if actions > 0 || parts.isEmpty { parts.append(actions == 1 ? "1 action" : "\(actions) actions") }
+        return parts.joined(separator: ", ")
+    }
+}
+
+/// Day strip under the Forecast title (Past, Today, the next 11 days, Future), like OmniFocus.
+struct ForecastHeaderStrip: View {
+    @Environment(AppModel.self) private var model
+    var body: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 0) {
+                ForEach(model.forecastDays) { day in
+                    let selected = model.forecastDay == day.id
+                    Button { model.forecastDay = day.id } label: {
+                        VStack(spacing: 3) {
+                            Text(day.label).font(.caption.weight(selected ? .bold : .medium))
+                            Text("\(day.count)").font(.title3.monospacedDigit())
+                                .foregroundStyle(day.count == 0 ? Color.secondary.opacity(0.4) : .primary)
+                            Capsule().fill(day.isPast && day.count > 0 ? Palette.overdue : (selected ? Color.accentColor : .clear))
+                                .frame(width: 12, height: 4)
+                        }
+                        .foregroundStyle(selected ? .primary : .secondary)
+                        .frame(minWidth: 64)
+                        .padding(.vertical, 4)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+        .padding(.top, 6)
     }
 }

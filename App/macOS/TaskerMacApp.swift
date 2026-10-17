@@ -10,7 +10,7 @@ struct TaskerMacApp: App {
         WindowGroup("Tasker", id: "main") {
             RootView()
                 .environment(AppModel.shared)
-                .frame(minWidth: 900, minHeight: 560)
+                .frame(minWidth: 1080, minHeight: 600)
         }
         .defaultSize(width: 1400, height: 860)
         .commands { TaskerCommands() }
@@ -99,9 +99,10 @@ struct TaskerCommands: Commands {
             Button("Due Today") { model.setDate(sel, F.dueDate, QuickEntryParser(snapshot: model.snapshot).date("today", hour: 17)) }
                 .keyboardShortcut("t", modifiers: [.command, .control]).disabled(sel.isEmpty)
             Button("Mark Reviewed") {
+                if model.sidebar == .review { model.markReviewedAndAdvance(); return }
                 model.perform("Mark Reviewed") { tx in for id in sel where tx.base.tasks[id]?.isProject == true { tx.markReviewed(id) } }
                 model.recentlyCompleted.formUnion(sel)
-            }.keyboardShortcut("r", modifiers: [.command, .shift]).disabled(sel.isEmpty)
+            }
         }
         CommandGroup(after: .sidebar) {
             Button("Inbox") { model.sidebar = .inbox }.keyboardShortcut("1")
@@ -113,6 +114,11 @@ struct TaskerCommands: Commands {
             ForEach(Array(model.snapshot.perspectives.prefix(2).enumerated()), id: \.element.id) { i, p in
                 Button(p.name) { model.sidebar = .perspective(p.id) }.keyboardShortcut(KeyEquivalent(Character("\(8 + i)")))
             }
+            Divider()
+            Button("Back") { model.goBack() }.keyboardShortcut("[", modifiers: [.command, .option]).disabled(!model.canGoBack)
+            Button("Forward") { model.goForward() }.keyboardShortcut("]", modifiers: [.command, .option]).disabled(!model.canGoForward)
+            Button(model.focusIDs.isEmpty ? "Focus" : "Unfocus") { model.toggleFocus() }.keyboardShortcut("f", modifiers: [.command, .shift])
+            Button(model.showInspector ? "Hide Inspector" : "Show Inspector") { model.showInspector.toggle() }.keyboardShortcut("i", modifiers: [.command, .option])
             Divider()
             Button("Sync Status…") { model.showSyncStatus = true }.keyboardShortcut("s", modifiers: [.command, .control])
             Button("Sync Now") { Task { await model.sync?.syncNow() } }.keyboardShortcut("s", modifiers: [.command, .option])

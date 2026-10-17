@@ -72,6 +72,10 @@ final class AppModel {
                 self.selection = self.selection.filter { self.pendingSelection.contains($0) }
                 self.pendingSelection = []
                 if let e = self.editingID, !self.selection.contains(e) { self.editingID = nil }
+                if self.sidebar == .review, self.projectFocus.isEmpty, let first = self.reviewProjects.first {
+                    self.projectFocus = [first.id]
+                }
+                self.recordNav()
             }
         }
     }
@@ -87,6 +91,77 @@ final class AppModel {
     var forecastDay: Date = Calendar.current.startOfDay(for: Date())
     var expanded: Set<String> = Set(UserDefaults.standard.stringArray(forKey: "expanded") ?? []) {
         didSet { UserDefaults.standard.set(Array(expanded), forKey: "expanded") }
+    }
+    /// Sidebar selection in Projects/Review (projects or folders shown in the main view).
+    var projectFocus: Set<String> = [] { didSet { if projectFocus != oldValue { recordNav() } } }
+    /// Sidebar selection in Tags.
+    var tagFocus: Set<String> = [] { didSet { if tagFocus != oldValue { recordNav() } } }
+    /// OmniFocus "Focus": when set, every view only shows these projects/folders and their contents.
+    var focusIDs: Set<String> = []
+
+    // MARK: Back / Forward
+
+    struct NavState: Equatable { var sidebar: SidebarItem?; var projectFocus: Set<String>; var tagFocus: Set<String> }
+    @ObservationIgnored private var history: [NavState] = []
+    @ObservationIgnored private var navigating = false
+    private(set) var historyIndex = -1
+    var canGoBack: Bool { historyIndex > 0 }
+    var canGoForward: Bool { historyIndex >= 0 && historyIndex < history.count - 1 }
+
+    func recordNav() {
+        guard !navigating else { return }
+        let st = NavState(sidebar: sidebar, projectFocus: projectFocus, tagFocus: tagFocus)
+        if historyIndex >= 0, history[historyIndex] == st { return }
+        // Clicking through projects replaces the last step rather than piling up entries.
+        if historyIndex >= 0, history[historyIndex].sidebar == st.sidebar, !history[historyIndex].projectFocus.isEmpty || !history[historyIndex].tagFocus.isEmpty,
+           !st.projectFocus.isEmpty || !st.tagFocus.isEmpty {
+            history[historyIndex] = st
+        } else {
+            history = Array(history.prefix(historyIndex + 1)) + [st]
+            if history.count > 100 { history.removeFirst(history.count - 100) }
+            historyIndex = history.count - 1
+        }
+    }
+
+    func goBack() { guard canGoBack else { return }; historyIndex -= 1; apply(history[historyIndex]) }
+    func goForward() { guard canGoForward else { return }; historyIndex += 1; apply(history[historyIndex]) }
+
+    private func apply(_ st: NavState) {
+        navigating = true
+        sidebar = st.sidebar
+        DispatchQueue.main.async {
+            DispatchQueue.main.async {
+                self.projectFocus = st.projectFocus
+                self.tagFocus = st.tagFocus
+                self.navigating = false
+            }
+        }
+    }
+
+    // MARK: Focus
+
+    func toggleFocus() {
+        if !focusIDs.isEmpty { focusIDs = []; return }
+        let candidates = projectFocus.union(selection).filter { snapshot.folders[$0] != nil || snapshot.tasks[$0]?.isProject == true }
+        focusIDs = candidates
+    }
+
+    var canFocus: Bool {
+        !focusIDs.isEmpty || projectFocus.union(selection).contains { snapshot.folders[$0] != nil || snapshot.tasks[$0]?.isProject == true }
+    }
+
+    func inFocus(_ id: String) -> Bool {
+        guard !focusIDs.isEmpty else { return true }
+        if focusIDs.contains(id) { return true }
+        if snapshot.ancestors(of: id).contains(where: focusIDs.contains) { return true }
+        // Folders above a focused item stay so the outline keeps its shape.
+        return focusIDs.contains { snapshot.ancestors(of: $0).contains(id) }
+    }
+    var collapsedFolders: Set<String> = Set(UserDefaults.standard.stringArray(forKey: "collapsedFolders") ?? []) {
+        didSet { UserDefaults.standard.set(Array(collapsedFolders), forKey: "collapsedFolders") }
+    }
+    var showInspector = UserDefaults.standard.object(forKey: "showInspector") as? Bool ?? true {
+        didSet { UserDefaults.standard.set(showInspector, forKey: "showInspector") }
     }
     var moveTargetFor: [String]?
     var editingPerspective: Perspective?
@@ -367,6 +442,42 @@ final class AppModel {
         return id
     }
 
+    // MARK: Review
+
+    /// Projects due for review, plus ones reviewed this session (so the list doesn't jump).
+    var reviewProjects: [TaskItem] {
+        snapshot.orderedProjects.filter { snapshot.projectInfo[$0.id]?.needsReview == true || recentlyCompleted.contains($0.id) }
+    }
+
+    func markReviewedAndAdvance() {
+        let list = reviewProjects
+        guard let id = projectFocus.first, snapshot.tasks[id]?.isProject == true else { return }
+        perform("Mark Reviewed") { $0.markReviewed(id) }
+        recentlyCompleted.insert(id)
+        if let i = list.firstIndex(where: { $0.id == id }), i + 1 < list.count { projectFocus = [list[i + 1].id] }
+    }
+
+    func reviewStep(_ delta: Int) {
+        let list = reviewProjects
+        guard !list.isEmpty else { return }
+        let i = projectFocus.first.flatMap { id in list.firstIndex { $0.id == id } } ?? -1
+        let j = min(max(i + delta, 0), list.count - 1)
+        projectFocus = [list[j].id]
+    }
+
+    func toggleFolder(_ id: String) {
+        if collapsedFolders.contains(id) { collapsedFolders.remove(id) } else { collapsedFolders.insert(id) }
+    }
+
+    func newProject(inFolder folder: String?) {
+        var n = NewTask(title: ""); n.isProject = true; n.parent = folder
+        var id = ""
+        perform("New Project") { tx in id = tx.createTask(n) }
+        if sidebar != .projects { sidebar = .projects }
+        projectFocus = [id]
+        DispatchQueue.main.async { self.projectFocus = [id]; self.selection = [id]; self.editingID = id }
+    }
+
     func toggleExpanded(_ id: String) {
         if expanded.contains(id) { expanded.remove(id) } else { expanded.insert(id) }
     }
@@ -441,7 +552,7 @@ final class AppModel {
         }
     }
 
-    private func outline(_ ids: [String], depth: Int, filter: ItemFilter, into rows: inout [OutlineRow]) {
+    private func outline(_ ids: [String], depth: Int, filter: ItemFilter, into rows: inout [OutlineRow], forceOpen: Set<String> = []) {
         for id in ids {
             if let f = snapshot.folders[id] {
                 if filter != .all && f.dropped { continue }
@@ -455,7 +566,7 @@ final class AppModel {
                 guard visible(id, filter: t.isProject && filter == .available ? .remaining : filter) else { continue }
                 if t.isProject && filter == .available && t.status != .active && !selection.contains(id) { continue }
                 var sub: [OutlineRow] = []
-                let open = expanded.contains(id) || (editingID != nil && snapshot.info[editingID!]?.parentID == id)
+                let open = expanded.contains(id) || forceOpen.contains(id) || (editingID != nil && snapshot.info[editingID!]?.parentID == id)
                 outline(snapshot.children[id] ?? [], depth: depth + 1, filter: filter, into: &sub)
                 rows.append(OutlineRow(id: id, kind: t.isProject ? .project : .task, depth: depth, hasChildren: !sub.isEmpty, expanded: open, showContext: false))
                 if open { rows.append(contentsOf: sub) }
@@ -464,6 +575,16 @@ final class AppModel {
     }
 
     func sections() -> [OutlineSection] {
+        let raw = unfocusedSections()
+        guard !focusIDs.isEmpty else { return raw }
+        return raw.map { sec in
+            var s = sec
+            s.rows = sec.rows.filter { inFocus($0.id) }
+            return s
+        }.filter { !$0.rows.isEmpty || $0.title.isEmpty }
+    }
+
+    private func unfocusedSections() -> [OutlineSection] {
         if !searchText.trimmingCharacters(in: .whitespaces).isEmpty { return searchSections() }
         switch sidebar ?? .inbox {
         case .inbox:
@@ -473,12 +594,31 @@ final class AppModel {
             var out = [OutlineSection(id: "inbox", title: "", rows: rows)]
             if !kept.isEmpty { out.append(OutlineSection(id: "filed", title: "Filed — Clean Up to hide", rows: flat(Array(kept).sorted()))) }
             return out
-        case .projects:
+        case .projects, .review:
+            if projectFocus.isEmpty {
+                if sidebar == .review {
+                    let projects = snapshot.orderedProjects.filter { snapshot.projectInfo[$0.id]?.needsReview == true || recentlyCompleted.contains($0.id) }
+                    return [OutlineSection(id: "review", title: "", rows: projects.map {
+                        OutlineRow(id: $0.id, kind: .project, depth: 0, hasChildren: false, expanded: false, showContext: false)
+                    })]
+                }
+                var rows: [OutlineRow] = []
+                outline(snapshot.libraryIDs, depth: 0, filter: filter, into: &rows)
+                return [OutlineSection(id: "library", title: "", rows: rows)]
+            }
+            // Focused: the selected folders' contents and the selected projects, opened, in library order.
+            let order = PerspectiveEngine(snapshot).manualOrder()
             var rows: [OutlineRow] = []
-            outline(snapshot.libraryIDs, depth: 0, filter: filter, into: &rows)
-            return [OutlineSection(id: "library", title: "", rows: rows)]
+            for id in projectFocus.sorted(by: { (order[$0] ?? .max) < (order[$1] ?? .max) }) {
+                if snapshot.folders[id] != nil {
+                    outline(snapshot.children[id] ?? [], depth: 0, filter: filter, into: &rows, forceOpen: [])
+                } else {
+                    outline([id], depth: 0, filter: sidebar == .review ? .remaining : filter, into: &rows, forceOpen: [id])
+                }
+            }
+            return [OutlineSection(id: "focus", title: "", rows: rows)]
         case .tags:
-            return snapshot.orderedTags.compactMap { entry in
+            return snapshot.orderedTags.filter { tagFocus.isEmpty || tagFocus.contains($0.tag.id) }.compactMap { entry in
                 let ids = (snapshot.tasksByTag[entry.tag.id] ?? []).filter { visible($0, filter: tagFilter) && snapshot.tasks[$0]?.isProject == false }
                 guard !ids.isEmpty else { return nil }
                 let sorted = PerspectiveEngine(snapshot).sort(ids, by: .manual)
@@ -488,11 +628,6 @@ final class AppModel {
             return PerspectiveEngine(snapshot).group(PerspectiveEngine(snapshot).sort(flaggedIDs(), by: .due), by: .project).map {
                 OutlineSection(id: $0.id, title: $0.title, rows: flat($0.taskIDs, showProject: $0.id == "inbox"))
             }
-        case .review:
-            let projects = snapshot.orderedProjects.filter { snapshot.projectInfo[$0.id]?.needsReview == true || recentlyCompleted.contains($0.id) }
-            return [OutlineSection(id: "review", title: "", rows: projects.map {
-                OutlineRow(id: $0.id, kind: .project, depth: 0, hasChildren: false, expanded: false, showContext: false)
-            })]
         case .forecast:
             return forecastSections()
         case .perspective(let pid):
@@ -545,25 +680,49 @@ final class AppModel {
         let isPast: Bool
     }
 
+    static let forecastStripDays = 12
+
+    @ObservationIgnored private var countsCache: (version: Int, day: Date, counts: [Date: Int], past: Int, future: Int)?
+
+    /// Due + planned counts per day (one pass over the database, cached per snapshot).
+    var forecastCounts: (byDay: [Date: Int], past: Int, future: Int) {
+        let cal = Calendar.current
+        let today = cal.startOfDay(for: snapshot.now)
+        if let c = countsCache, c.version == snapshot.version, c.day == today { return (c.counts, c.past, c.future) }
+        let horizon = cal.date(byAdding: .day, value: Self.forecastStripDays, to: today)!
+        var counts: [Date: Int] = [:]
+        var past = 0, future = 0
+        for t in snapshot.tasks.values {
+            guard let i = snapshot.info[t.id], i.isRemaining else { continue }
+            guard let d = t.dueDate ?? t.plannedDate else { continue }
+            if d < today { if t.dueDate != nil { past += 1 }; continue }
+            let day = cal.startOfDay(for: d)
+            counts[day, default: 0] += 1
+            if day >= horizon { future += 1 }
+        }
+        countsCache = (snapshot.version, today, counts, past, future)
+        return (counts, past, future)
+    }
+
     var forecastDays: [ForecastDay] {
         let cal = Calendar.current
         let today = cal.startOfDay(for: snapshot.now)
-        let wd = DateFormatter(); wd.dateFormat = "EEE"
-        let dd = DateFormatter(); dd.dateFormat = "d"
-        var out = [ForecastDay(id: .distantPast, label: "Past", sublabel: "", count: forecastIDs(for: .distantPast).due.count, isPast: true)]
-        for n in 0..<7 {
+        let counts = forecastCounts
+        let wd = DateFormatter(); wd.dateFormat = "EEE d"
+        var out = [ForecastDay(id: .distantPast, label: "Past", sublabel: "", count: counts.past, isPast: true)]
+        for n in 0..<Self.forecastStripDays {
             let d = cal.date(byAdding: .day, value: n, to: today)!
-            let ids = forecastIDs(for: d)
-            out.append(ForecastDay(id: d, label: n == 0 ? "Today" : wd.string(from: d), sublabel: dd.string(from: d), count: ids.due.count + ids.planned.count, isPast: false))
+            out.append(ForecastDay(id: d, label: n == 0 ? "Today" : wd.string(from: d), sublabel: "\(cal.component(.day, from: d))",
+                                   count: counts.byDay[d] ?? 0, isPast: false))
         }
-        out.append(ForecastDay(id: .distantFuture, label: "Future", sublabel: "", count: forecastIDs(for: .distantFuture).due.count, isPast: false))
+        out.append(ForecastDay(id: .distantFuture, label: "Future", sublabel: "", count: counts.future, isPast: false))
         return out
     }
 
     func forecastIDs(for day: Date) -> (due: [String], planned: [String], deferred: [String]) {
         let cal = Calendar.current
         let today = cal.startOfDay(for: snapshot.now)
-        let horizon = cal.date(byAdding: .day, value: 7, to: today)!
+        let horizon = cal.date(byAdding: .day, value: Self.forecastStripDays, to: today)!
         func inDay(_ d: Date?) -> Bool {
             guard let d else { return false }
             if day == .distantPast { return d < today }
@@ -587,11 +746,19 @@ final class AppModel {
         var out: [OutlineSection] = []
         if forecastDay == today {
             let past = forecastIDs(for: .distantPast).due
-            if !past.isEmpty { out.append(OutlineSection(id: "past", title: "Past due", rows: flat(past))) }
+            if !past.isEmpty { out.append(OutlineSection(id: "past", title: "Past", rows: flat(past))) }
         }
         let ids = forecastIDs(for: forecastDay)
-        if !ids.due.isEmpty { out.append(OutlineSection(id: "due", title: "Due", rows: flat(ids.due))) }
-        if !ids.planned.isEmpty { out.append(OutlineSection(id: "planned", title: "Planned", rows: flat(ids.planned))) }
+        let dayTitle: String = {
+            if forecastDay == .distantPast { return "Past" }
+            if forecastDay == .distantFuture { return "Future" }
+            let d = forecastDay.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated))
+            if forecastDay == today { return "Today — \(d)" }
+            if cal.isDateInTomorrow(forecastDay) { return "Tomorrow — \(d)" }
+            return d
+        }()
+        let main = ids.due + ids.planned
+        if !main.isEmpty || forecastDay == today { out.append(OutlineSection(id: "day", title: dayTitle, rows: flat(main))) }
         if !ids.deferred.isEmpty { out.append(OutlineSection(id: "deferred", title: "Becoming available", rows: flat(ids.deferred))) }
         return out
     }
