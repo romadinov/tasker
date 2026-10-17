@@ -37,7 +37,9 @@ public enum TaskerConfig {
         guard let task = SecTaskCreateFromSelf(nil) else { return false }
         return SecTaskCopyValueForEntitlement(task, "com.apple.developer.icloud-services" as CFString, nil) != nil
         #else
-        return true
+        // iOS can't read its own entitlements, but the app group and iCloud entitlements are always
+        // signed in together: an unsigned (e.g. simulator CI) build has neither, and CKContainer would trap.
+        return FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroup) != nil
         #endif
     }
 

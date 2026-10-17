@@ -52,7 +52,21 @@ final class MacAppDelegate: NSObject, NSApplicationDelegate {
     func application(_ application: NSApplication, open urls: [URL]) {
         MainActor.assumeIsolated {
             for url in urls {
-                if let r = AddRequest(url: url) { AppModel.shared.handleAdd(r) }
+                if let r = AddRequest(url: url) { AppModel.shared.handleAdd(r); continue }
+                // tasker://clip[?quick=1|dry=1] — run the clipper on the frontmost app (Shortcuts, Keyboard Maestro…).
+                // dry=1 only reports what would be captured (no task is created).
+                if url.scheme == "tasker", url.host == "clip" {
+                    let q = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems ?? []
+                    let flag = { (k: String) in q.contains { $0.name == k && ["1", "true"].contains($0.value ?? "") } }
+                    if flag("dry") {
+                        let c = Clipper.capture()
+                        let summary = "title=\(c.title) | note=\(c.note.prefix(200))"
+                        NSLog("TASKER-CLIP dry %@", summary)
+                        Toast.show("Clip preview", detail: c.title + "\n" + (c.note.split(separator: "\n").first.map(String.init) ?? ""), seconds: 4)
+                    } else {
+                        Clipper.clipFrontmost(quick: flag("quick"))
+                    }
+                }
             }
         }
     }
