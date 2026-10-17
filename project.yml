@@ -29,6 +29,11 @@ targets:
       - path: App/Assets.xcassets
     dependencies:
       - package: TaskerCore
+      - target: TaskerMCP
+        embed: true
+        codeSign: true
+        copy:
+          destination: executables
     settings:
       base:
         PRODUCT_NAME: Tasker
@@ -40,6 +45,20 @@ targets:
         CODE_SIGN_ENTITLEMENTS: App/macOS/Tasker.entitlements
         ENABLE_HARDENED_RUNTIME: YES
         ENABLE_APP_SANDBOX: NO
+  TaskerMCP:
+    type: tool
+    platform: macOS
+    sources:
+      - App/MCP
+    dependencies:
+      - package: TaskerCore
+    settings:
+      base:
+        PRODUCT_NAME: tasker-mcp
+        PRODUCT_BUNDLE_IDENTIFIER: com.romadinov.tasker.mcp
+        ENABLE_HARDENED_RUNTIME: YES
+        SKIP_INSTALL: YES
+        GENERATE_INFOPLIST_FILE: NO
   TaskerIOS:
     type: application
     platform: iOS

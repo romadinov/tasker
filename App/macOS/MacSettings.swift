@@ -9,6 +9,7 @@ struct MacSettingsView: View {
             SettingsView().tabItem { Label("General", systemImage: "gearshape") }
             NavigationStack { SyncStatusView() }.tabItem { Label("Sync", systemImage: "icloud") }
             OmniFocusImportView().tabItem { Label("Import", systemImage: "square.and.arrow.down") }
+            MCPSettingsView().tabItem { Label("MCP", systemImage: "point.3.connected.trianglepath.dotted") }
         }
         .frame(width: 620, height: 560)
     }
@@ -197,5 +198,58 @@ enum OmniFocusRunner {
         let errText = String(data: err.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8)
         if p.terminationStatus != 0 { return (nil, errText?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "osascript failed") }
         return (try? Data(contentsOf: out), nil)
+    }
+}
+
+/// Connect AI assistants (Claude Code, Claude Desktop, any MCP client) to Tasker.
+struct MCPSettingsView: View {
+    @State private var copied: String?
+
+    var path: String { Bundle.main.bundleURL.appendingPathComponent("Contents/MacOS/tasker-mcp").path }
+    var claudeCode: String { "claude mcp add --scope user tasker -- \"\(path)\"" }
+    var desktopJSON: String {
+        """
+        {
+          "mcpServers": {
+            "tasker": { "command": "\(path)" }
+          }
+        }
+        """
+    }
+    var inApplications: Bool { Bundle.main.bundleURL.path.hasPrefix("/Applications/") }
+
+    var body: some View {
+        Form {
+            Section {
+                Text("Tasker includes an MCP server, so assistants can read your perspectives, search, and add or update actions. It works on this Mac's database directly; changes appear in the app at once and sync to your other devices via iCloud.")
+                    .font(.callout).foregroundStyle(.secondary)
+                if !inApplications {
+                    Label("Tasker isn't in /Applications. If you move it later, update the path below in your MCP client.", systemImage: "exclamationmark.triangle")
+                        .font(.caption).foregroundStyle(.orange)
+                }
+            }
+            Section("Claude Code") {
+                snippet(claudeCode, key: "code")
+            }
+            Section("Claude Desktop — add to claude_desktop_config.json") {
+                snippet(desktopJSON, key: "desktop")
+            }
+            Section("Tools") {
+                Text("list_perspectives · get_perspective_items · search_tasks · get_task · list_projects · list_tags · create_task · update_task · complete_task · drop_task · create_project · mark_reviewed")
+                    .font(.caption.monospaced()).foregroundStyle(.secondary)
+            }
+        }
+        .formStyle(.grouped)
+    }
+
+    func snippet(_ text: String, key: String) -> some View {
+        HStack(alignment: .top) {
+            Text(text).font(.caption.monospaced()).textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading)
+            Button(copied == key ? "Copied" : "Copy") {
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(text, forType: .string)
+                copied = key
+            }
+        }
     }
 }
