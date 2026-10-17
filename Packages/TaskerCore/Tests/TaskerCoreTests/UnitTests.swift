@@ -239,3 +239,30 @@ import Testing
         #expect(Fuzzy.matchPositions("ubn", "Common : Гитара") == [9, 10, 11]) // wrong layout
     }
 }
+
+@Suite struct AddURLTests {
+    @Test func parsesScriptoriumStyleRequest() throws {
+        var c = URLComponents(string: "tasker://add")!
+        c.queryItems = [
+            .init(name: "title", value: "Gödel, Escher, Bach — p. 42"),
+            .init(name: "url", value: "scriptorium://open?doc=a1b2&page=42&progress=0.1000&highlight=E2F1"),
+            .init(name: "note", value: "“What is a strange loop?”"),
+            .init(name: "tags", value: "Books, Read"),
+            .init(name: "quick", value: "1"),
+            .init(name: "x-success", value: "scriptorium://"),
+        ]
+        let r = try #require(AddRequest(url: c.url!))
+        #expect(r.title == "Gödel, Escher, Bach — p. 42")
+        #expect(r.url == "scriptorium://open?doc=a1b2&page=42&progress=0.1000&highlight=E2F1")
+        #expect(r.tags == ["Books", "Read"])
+        #expect(r.quick)
+        #expect(r.xSuccess?.absoluteString == "scriptorium://")
+        #expect(r.fullNote.hasPrefix("scriptorium://open?doc=a1b2"))
+    }
+
+    @Test func rejectsEmptyOrForeign() {
+        #expect(AddRequest(url: URL(string: "tasker://add")!) == nil)
+        #expect(AddRequest(url: URL(string: "https://example.com/add?title=x")!) == nil)
+        #expect(AddRequest(url: URL(string: "tasker://add?title=Hi")!)?.quick == false)
+    }
+}

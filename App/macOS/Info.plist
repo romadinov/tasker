@@ -2,6 +2,15 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>com.romadinov.tasker.add</string>
+			<key>CFBundleURLSchemes</key>
+			<array><string>tasker</string></array>
+		</dict>
+	</array>
 	<key>NSLocationUsageDescription</key>
 	<string>Tasker shows actions for the shops and places you are at, in Nearby.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>

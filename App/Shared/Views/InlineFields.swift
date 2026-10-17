@@ -308,11 +308,10 @@ struct InlineNote: View {
     /// Note text with URLs turned into short, clickable links ("kairu.app/pricing").
     /// On a highlighted row the link uses the row's text colour so it stays readable.
     static func linkified(_ s: String, prominent: Bool = false) -> AttributedString {
-        guard let det = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue) else { return AttributedString(s) }
         var out = AttributedString()
         var cursor = s.startIndex
-        for m in det.matches(in: s, range: NSRange(s.startIndex..., in: s)) {
-            guard let url = m.url, let r = Range(m.range, in: s) else { continue }
+        for (r, url) in Links.find(in: s) {
+            guard r.lowerBound >= cursor else { continue }
             var before = String(s[cursor..<r.lowerBound])
             // Clippings often wrap URLs in <...>; drop the brackets around the shortened link.
             var after = r.upperBound
@@ -331,6 +330,7 @@ struct InlineNote: View {
 
     static func short(_ url: URL) -> String {
         if url.scheme == "message" { return "✉︎ Open email" }
+        if url.scheme == "scriptorium" { return "📖 Open in Scriptorium" }
         let host = (url.host() ?? url.absoluteString).replacingOccurrences(of: "www.", with: "")
         if host.contains("slack.com") { return "Slack message" }
         if host.contains("mimestream") { return "✉︎ Open in Mimestream" }

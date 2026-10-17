@@ -374,6 +374,7 @@ struct TaskInspector: View {
 
     func linkTitle(_ url: URL) -> String {
         if url.scheme == "message" { return "Open email in Mail" }
+        if url.scheme == "scriptorium" { return "Open in Scriptorium" }
         let host = url.host() ?? url.absoluteString
         if host.contains("mimestream") { return "Open email in Mimestream" }
         if host.contains("slack.com") { return "Open Slack message" }
@@ -383,13 +384,13 @@ struct TaskInspector: View {
     func linkIcon(_ url: URL) -> String {
         let h = url.host() ?? ""
         if url.scheme == "message" || h.contains("mimestream") { return "envelope" }
+        if url.scheme == "scriptorium" { return "book" }
         if h.contains("slack.com") { return "bubble.left.and.bubble.right" }
         return "link"
     }
 
     func links(_ note: String) -> [URL] {
-        guard let det = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue) else { return [] }
-        return det.matches(in: note, range: NSRange(note.startIndex..., in: note)).compactMap(\.url).prefix(8).map { $0 }
+        Links.find(in: note).map(\.url).prefix(8).map { $0 }
     }
 }
 

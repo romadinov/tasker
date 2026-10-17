@@ -13,6 +13,8 @@ struct TaskerMacApp: App {
                 .frame(minWidth: 1080, minHeight: 600)
         }
         .defaultSize(width: 1400, height: 860)
+        // tasker:// links go to the app delegate; don't let SwiftUI open extra windows for them.
+        .handlesExternalEvents(matching: [])
         .commands { TaskerCommands() }
 
         Settings {
@@ -34,8 +36,25 @@ final class MacAppDelegate: NSObject, NSApplicationDelegate {
             #endif
         }
         NSApp.servicesProvider = services
+        NotificationCenter.default.addObserver(forName: .taskerQuickAdded, object: nil, queue: .main) { n in
+            MainActor.assumeIsolated { Toast.show("Added to Tasker", detail: n.object as? String ?? "") }
+        }
+        NotificationCenter.default.addObserver(forName: .taskerShowQuickEntry, object: nil, queue: .main) { n in
+            MainActor.assumeIsolated {
+                if let c = n.userInfo?["capture"] as? AppModel.Capture { QuickEntryController.shared.show(capture: c) }
+            }
+        }
         NSUpdateDynamicServices()
         NSApp.registerForRemoteNotifications()
+    }
+
+    /// tasker://add?… from other apps (Scriptorium's "Send to Tasker", Shortcuts, scripts).
+    func application(_ application: NSApplication, open urls: [URL]) {
+        MainActor.assumeIsolated {
+            for url in urls {
+                if let r = AddRequest(url: url) { AppModel.shared.handleAdd(r) }
+            }
+        }
     }
 
     func applicationDidBecomeActive(_ notification: Notification) {

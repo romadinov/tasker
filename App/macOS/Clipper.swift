@@ -96,6 +96,20 @@ enum Clipper {
                 let w = focusedWindowTitle(of: app).map(cleanMimestreamTitle) ?? ""
                 capture.title = w.hasPrefix("Inbox") || w.contains(": ") && !w.contains(" ") ? "Email" : w
             }
+        case "com.romadinov.reader.mac":
+            // Scriptorium: ⌃⌘C "Copy Link" puts the deep link (public.url, scriptorium://open?doc=…&page=…)
+            // and "Book — p. N" (public.url-name) on the clipboard. Selected text comes via Accessibility.
+            if !AXIsProcessTrusted() {
+                problem = .noAccessibility
+            } else if let copied = copyViaKeystroke(keyCode: 8, flags: [.maskControl, .maskCommand]), let url = copied.url {
+                link = url
+                if let t = copied.text?.trimmingCharacters(in: .whitespacesAndNewlines), !t.isEmpty, Links.find(in: t).isEmpty {
+                    capture.title = String(t.prefix(150))
+                }
+            } else {
+                problem = .selectMessage("Scriptorium didn't provide a link. Update Scriptorium (it needs Edit → Copy Link, ⌃⌘C).")
+            }
+            if capture.title.isEmpty { capture.title = focusedWindowTitle(of: app) ?? "Scriptorium" }
         case "com.tinyspeck.slackmacgap":
             // "L" copies the link of the highlighted message, but would type into the composer,
             // so only send it when a text field doesn't have focus.
@@ -120,7 +134,7 @@ enum Clipper {
 
         if let selection, !selection.isEmpty {
             let firstLine = selection.split(separator: "\n").first.map(String.init) ?? selection
-            if bundle == "com.tinyspeck.slackmacgap" || capture.title.isEmpty || capture.title.hasPrefix("From ") {
+            if bundle != "com.romadinov.reader.mac" && (bundle == "com.tinyspeck.slackmacgap" || capture.title.isEmpty || capture.title.hasPrefix("From ")) {
                 capture.title = String(firstLine.prefix(120))
             }
             capture.note = [capture.note, selection].filter { !$0.isEmpty }.joined(separator: "\n\n")

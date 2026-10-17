@@ -106,3 +106,19 @@ claude mcp add --scope user tasker -- "/Applications/Tasker.app/Contents/MacOS/t
 ```
 
 Tools: `list_perspectives`, `get_perspective_items`, `search_tasks`, `get_task`, `list_projects`, `list_tags`, `create_task`, `update_task`, `complete_task`, `drop_task`, `create_project`, `mark_reviewed`. Set `TASKER_DB=/path/to/copy.sqlite` to point it at a test database.
+
+## Sending items from other apps (`tasker://add`)
+
+Mac, iPhone and iPad register the `tasker` URL scheme:
+
+```
+tasker://add?title=<text>&note=<text>&url=<link>&project=<"Folder : Project" or name>&tags=<a,b>
+            &flagged=1&due=<ISO or "fri"/"+3d">&defer=…&planned=…&quick=1&x-success=<return URL>
+```
+
+Without `quick` Quick Entry opens pre-filled; with `quick=1` the item is saved straight to the Inbox and `x-success`
+(if given) is opened afterwards, returning to the calling app. `url` becomes the first line of the note, and app links
+with custom schemes (e.g. `scriptorium://…`, `message://…`) are shown as tappable links.
+
+**Scriptorium**: on the Mac the clip hotkeys send Scriptorium ⌃⌘C ("Copy Link") and capture the book/page title, the
+deep link and any selected text; on iPhone/iPad use Scriptorium's "Send to Tasker" or the share sheet.

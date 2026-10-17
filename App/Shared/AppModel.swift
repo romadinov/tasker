@@ -521,6 +521,60 @@ final class AppModel {
         if expanded.contains(id) { expanded.remove(id) } else { expanded.insert(id) }
     }
 
+    // MARK: tasker://add (other apps, e.g. Scriptorium)
+
+    /// Short confirmation shown in the app (iOS) after a quick add from another app.
+    var banner: String?
+
+    func handleAdd(_ r: AddRequest) {
+        let s = snapshot
+        let parser = QuickEntryParser(snapshot: s)
+        func date(_ v: String?, _ hour: Int) -> Date? {
+            guard let v else { return nil }
+            if let d = ISO8601DateFormatter().date(from: v) { return d }
+            return parser.date(v, hour: hour)
+        }
+        var projectID = r.project.flatMap { name -> String? in
+            if let p = s.project(atPath: name) { return p.id }
+            let remaining = s.orderedProjects.filter { s.info[$0.id]?.isRemaining == true }
+            return Fuzzy.rank(remaining, name) { ([$0.title] + s.folderPath(of: $0.id)).joined(separator: "  ") }.first?.id
+        }
+        var tagIDs = r.tags.compactMap { n in s.tags.values.first { $0.name.compare(n, options: .caseInsensitive) == .orderedSame }?.id }
+        let title = r.title.isEmpty ? (r.url.map { _ in "Link" } ?? String(r.note.prefix(80))) : r.title
+        if r.quick {
+            if projectID == nil, let name = r.project, name.contains(":") { projectID = createProject(named: name) }
+            for n in r.tags where !s.tags.values.contains(where: { $0.name.compare(n, options: .caseInsensitive) == .orderedSame }) {
+                tagIDs.append(createTag(named: n))
+            }
+            let id = quickAdd(title: title, note: r.fullNote, projectID: projectID, tagIDs: tagIDs, flagged: r.flagged,
+                              deferDate: date(r.deferDate, 0), dueDate: date(r.due, 17))
+            if let id, let planned = date(r.planned, 9) { perform("Planned") { $0.setTask(id, F.plannedDate, .date(planned)) } }
+            banner = "Added to Tasker: \(title)"
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) { [weak self] in self?.banner = nil }
+            #if os(macOS)
+            NotificationCenter.default.post(name: .taskerQuickAdded, object: title)
+            #endif
+            if let x = r.xSuccess { openExternal(x) }
+        } else {
+            var c = Capture(title: title, note: r.fullNote)
+            c.projectID = projectID; c.tagIDs = tagIDs; c.flagged = r.flagged; c.dueDate = date(r.due, 17)
+            #if os(macOS)
+            NotificationCenter.default.post(name: .taskerShowQuickEntry, object: nil, userInfo: ["capture": c])
+            #else
+            quickEntryCapture = c
+            showQuickEntry = true
+            #endif
+        }
+    }
+
+    func openExternal(_ url: URL) {
+        #if os(macOS)
+        NSWorkspace.shared.open(url)
+        #else
+        UIApplication.shared.open(url)
+        #endif
+    }
+
     // MARK: Quick entry
 
     struct Capture: Equatable {
@@ -824,4 +878,9 @@ final class AppModel {
         if !ids.deferred.isEmpty { out.append(OutlineSection(id: "deferred", title: "Becoming available", rows: flat(ids.deferred))) }
         return out
     }
+}
+
+extension Notification.Name {
+    static let taskerQuickAdded = Notification.Name("taskerQuickAdded")
+    static let taskerShowQuickEntry = Notification.Name("taskerShowQuickEntry")
 }

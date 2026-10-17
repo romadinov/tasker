@@ -11,6 +11,21 @@ struct TaskerIOSApp: App {
         WindowGroup {
             RootView()
                 .environment(AppModel.shared)
+                .onOpenURL { url in
+                    // tasker://add?… from Scriptorium and other apps.
+                    if let r = AddRequest(url: url) { AppModel.shared.handleAdd(r) }
+                }
+                .overlay(alignment: .top) {
+                    if let b = AppModel.shared.banner {
+                        Label(b, systemImage: "checkmark.circle.fill")
+                            .font(.callout.weight(.medium))
+                            .padding(.horizontal, 14).padding(.vertical, 10)
+                            .background(Capsule().fill(.regularMaterial))
+                            .padding(.top, 8)
+                            .transition(.move(edge: .top).combined(with: .opacity))
+                    }
+                }
+                .animation(.snappy, value: AppModel.shared.banner)
         }
         .backgroundTask(.appRefresh(IOSAppDelegate.refreshID)) {
             await IOSAppDelegate.scheduleRefresh()

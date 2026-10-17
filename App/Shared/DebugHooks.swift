@@ -12,6 +12,11 @@ enum DebugHooks {
             switch action {
             case "newTask": newTask()
             case "quickEntry": model.presentQuickEntry()
+            case "url":
+                // TASKER_DEBUG_URL="tasker://add?…" exercises the same handler as onOpenURL.
+                if let u = ProcessInfo.processInfo.environment["TASKER_DEBUG_URL"].flatMap(URL.init(string:)), let r = AddRequest(url: u) {
+                    model.handleAdd(r)
+                }
             case "nearby":
                 // TASKER_DEBUG_TAGLOC="TagName|search term" links a tag to a kind of place.
                 if let spec = ProcessInfo.processInfo.environment["TASKER_DEBUG_TAGLOC"]?.split(separator: "|").map(String.init), spec.count == 2,
