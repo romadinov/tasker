@@ -55,6 +55,7 @@ final class MacAppDelegate: NSObject, NSApplicationDelegate {
 enum HotKeys {
     static let quickEntryKey = "hotkey.quickEntry"
     static let clipKey = "hotkey.clip"
+    static let quickClipKey = "hotkey.quickClip"
 
     static func apply() {
         HotKeyCenter.shared.register(id: 1, Shortcut.load(quickEntryKey, default: .quickEntryDefault)) {
@@ -62,6 +63,9 @@ enum HotKeys {
         }
         HotKeyCenter.shared.register(id: 2, Shortcut.load(clipKey, default: .clipDefault)) {
             Clipper.clipFrontmost()
+        }
+        HotKeyCenter.shared.register(id: 3, Shortcut.load(quickClipKey, default: .quickClipDefault)) {
+            Clipper.clipFrontmost(quick: true)
         }
     }
 }

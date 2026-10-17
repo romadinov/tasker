@@ -1,29 +1,46 @@
 import AppKit
 import ApplicationServices
+import SwiftUI
 import TaskerCore
 
-/// The clipper: captures what you're looking at in the frontmost app into Quick Entry.
-/// - Safari / Chromium browsers / Arc: page title + URL (+ selected text)
-/// - Mail: subject + a message:// link that reopens the email
-/// - Anything else: the selected text (via Accessibility, if permitted)
+/// The clipper: captures what you're looking at in the frontmost app.
+/// - Browsers (Safari, Chrome, Arc, Brave, Edge, Vivaldi, Orion): page title + URL (+ selected text)
+/// - Mail: subject + message:// link
+/// - Mimestream: subject + the message's deep link (Mimestream copies it on ⌘C)
+/// - Slack: the highlighted message's link (Slack copies it on "L") + selected text
+/// - Anything else: selected text (Accessibility)
+/// Normal clip opens Quick Entry pre-filled; Quick Clip saves straight to the Inbox.
 @MainActor
 enum Clipper {
-    static func clipFrontmost() {
+    static func clipFrontmost(quick: Bool = false) {
+        let capture = capture()
+        if quick {
+            let title = capture.title.isEmpty ? "Clipping" : capture.title
+            if AppModel.shared.quickAdd(title: title, note: capture.note, projectID: nil, tagIDs: [], flagged: false, deferDate: nil, dueDate: nil) != nil {
+                Toast.show("Clipped to Inbox", detail: title)
+            }
+        } else {
+            QuickEntryController.shared.show(capture: capture)
+        }
+    }
+
+    static func capture() -> AppModel.Capture {
         let app = NSWorkspace.shared.frontmostApplication
         let bundle = app?.bundleIdentifier ?? ""
         var capture = AppModel.Capture()
+        var link: String?
         let selection = selectedText()
 
         switch bundle {
-        case "com.apple.Safari", "com.apple.SafariTechnologyPreview":
+        case "com.apple.Safari", "com.apple.SafariTechnologyPreview", "com.kagi.kagimacOS":
             if let r = runScript("tell application id \"\(bundle)\" to return {name of current tab of front window, URL of current tab of front window}") {
                 capture.title = r.first ?? ""
-                capture.note = r.dropFirst().first ?? ""
+                link = r.dropFirst().first
             }
-        case "com.google.Chrome", "com.brave.Browser", "com.microsoft.edgemac", "company.thebrowser.Browser", "com.vivaldi.Vivaldi":
+        case "com.google.Chrome", "com.brave.Browser", "com.microsoft.edgemac", "company.thebrowser.Browser", "com.vivaldi.Vivaldi", "com.google.Chrome.canary":
             if let r = runScript("tell application id \"\(bundle)\" to return {title of active tab of front window, URL of active tab of front window}") {
                 capture.title = r.first ?? ""
-                capture.note = r.dropFirst().first ?? ""
+                link = r.dropFirst().first
             }
         case "com.apple.mail":
             let script = """
@@ -35,26 +52,129 @@ enum Clipper {
             if let r = runScript(script), r.count >= 2 {
                 capture.title = r[0]
                 let id = r[1].addingPercentEncoding(withAllowedCharacters: .alphanumerics.union(CharacterSet(charactersIn: "@.-_"))) ?? r[1]
-                capture.note = "message://%3C\(id)%3E" + (r.count > 2 ? "\nFrom: \(r[2])" : "")
+                link = "message://%3C\(id)%3E"
+                if r.count > 2 { capture.note = "From: \(r[2])" }
             }
+        case "com.mimestream.Mimestream":
+            // ⌘C on a selected message or thread copies its deep link.
+            if let copied = copyViaKeystroke(keyCode: 8, flags: .maskCommand), let url = firstURL(in: copied) {
+                link = url
+            }
+            capture.title = focusedWindowTitle(of: app).map(cleanMimestreamTitle) ?? ""
+        case "com.tinyspeck.slackmacgap":
+            // "L" copies the link of the highlighted message, but would type into the composer,
+            // so only send it when a text field doesn't have focus.
+            if !focusedElementIsTextInput(), let copied = copyViaKeystroke(keyCode: 37, flags: []),
+               let url = firstURL(in: copied), url.contains("slack.com") {
+                link = url
+            } else if let recent = recentClipboardURL(containing: "slack.com/archives") {
+                link = recent
+            }
+            let channel = focusedWindowTitle(of: app)?.components(separatedBy: " - ").first
+            capture.title = channel.map { "Slack: \($0)" } ?? "Slack message"
         default:
-            capture.title = app?.localizedName.map { "From \($0)" } ?? ""
+            if let r = focusedWindowTitle(of: app), !r.isEmpty { capture.title = r }
+            else { capture.title = app?.localizedName.map { "From \($0)" } ?? "" }
         }
 
         if let selection, !selection.isEmpty {
-            if capture.title.isEmpty || capture.title.hasPrefix("From ") {
-                let firstLine = selection.split(separator: "\n").first.map(String.init) ?? selection
+            let firstLine = selection.split(separator: "\n").first.map(String.init) ?? selection
+            if bundle == "com.tinyspeck.slackmacgap" || capture.title.isEmpty || capture.title.hasPrefix("From ") {
                 capture.title = String(firstLine.prefix(120))
             }
             capture.note = [capture.note, selection].filter { !$0.isEmpty }.joined(separator: "\n\n")
         }
-        QuickEntryController.shared.show(capture: capture)
+        // The link goes first so it's the first thing visible in the note.
+        if let link, !link.isEmpty {
+            capture.note = [link, capture.note].filter { !$0.isEmpty }.joined(separator: "\n\n")
+        }
+        return capture
+    }
+
+    // MARK: Helpers
+
+    static func cleanMimestreamTitle(_ t: String) -> String {
+        // Window titles look like "Subject — account@gmail.com"; keep the subject.
+        t.components(separatedBy: " — ").first ?? t
+    }
+
+    static func firstURL(in s: String) -> String? {
+        let det = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue)
+        return det?.firstMatch(in: s, range: NSRange(s.startIndex..., in: s))?.url?.absoluteString
+    }
+
+    private static var lastSeenChange = (count: NSPasteboard.general.changeCount, at: Date())
+
+    static func recentClipboardURL(containing needle: String) -> String? {
+        let pb = NSPasteboard.general
+        guard let s = pb.string(forType: .string), s.contains(needle) else { return nil }
+        return firstURL(in: s)
+    }
+
+    /// Sends a keystroke to the frontmost app and returns what it put on the clipboard,
+    /// then restores the clipboard. Needs Accessibility permission.
+    static func copyViaKeystroke(keyCode: CGKeyCode, flags: CGEventFlags) -> String? {
+        guard AXIsProcessTrusted() else { return nil }
+        let pb = NSPasteboard.general
+        let saved = pb.pasteboardItems?.map { item -> [NSPasteboard.PasteboardType: Data] in
+            var d: [NSPasteboard.PasteboardType: Data] = [:]
+            for t in item.types { if let v = item.data(forType: t) { d[t] = v } }
+            return d
+        } ?? []
+        // The hotkey fires while its modifiers are still held; wait for release so they don't
+        // combine with the synthetic keystroke (e.g. ⌃⌥⇧L instead of L).
+        let mods: CGEventFlags = [.maskCommand, .maskControl, .maskAlternate, .maskShift]
+        let releaseBy = Date().addingTimeInterval(1.5)
+        while !CGEventSource.flagsState(.combinedSessionState).intersection(mods).isEmpty && Date() < releaseBy {
+            RunLoop.current.run(until: Date().addingTimeInterval(0.02))
+        }
+        let before = pb.changeCount
+        let src = CGEventSource(stateID: .combinedSessionState)
+        let down = CGEvent(keyboardEventSource: src, virtualKey: keyCode, keyDown: true)
+        let up = CGEvent(keyboardEventSource: src, virtualKey: keyCode, keyDown: false)
+        down?.flags = flags; up?.flags = flags
+        down?.post(tap: .cghidEventTap); up?.post(tap: .cghidEventTap)
+        let deadline = Date().addingTimeInterval(0.8)
+        while pb.changeCount == before && Date() < deadline {
+            RunLoop.current.run(until: Date().addingTimeInterval(0.03))
+        }
+        guard pb.changeCount != before else { return nil }
+        let result = pb.string(forType: .string) ?? pb.string(forType: .URL)
+        // Put the user's clipboard back.
+        pb.clearContents()
+        let items = saved.map { dict -> NSPasteboardItem in
+            let item = NSPasteboardItem()
+            for (t, v) in dict { item.setData(v, forType: t) }
+            return item
+        }
+        if !items.isEmpty { pb.writeObjects(items) }
+        return result
+    }
+
+    static func focusedElementIsTextInput() -> Bool {
+        guard AXIsProcessTrusted() else { return true }
+        let system = AXUIElementCreateSystemWide()
+        var focused: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(system, kAXFocusedUIElementAttribute as CFString, &focused) == .success, let focused else { return false }
+        var role: CFTypeRef?
+        AXUIElementCopyAttributeValue(focused as! AXUIElement, kAXRoleAttribute as CFString, &role)
+        let r = role as? String ?? ""
+        return r == kAXTextAreaRole || r == kAXTextFieldRole || r == "AXComboBox"
+    }
+
+    static func focusedWindowTitle(of app: NSRunningApplication?) -> String? {
+        guard AXIsProcessTrusted(), let pid = app?.processIdentifier else { return nil }
+        let axApp = AXUIElementCreateApplication(pid)
+        var window: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(axApp, kAXFocusedWindowAttribute as CFString, &window) == .success, let window else { return nil }
+        var title: CFTypeRef?
+        AXUIElementCopyAttributeValue(window as! AXUIElement, kAXTitleAttribute as CFString, &title)
+        return (title as? String).flatMap { $0.isEmpty ? nil : $0 }
     }
 
     /// Selected text from the focused element of the frontmost app (needs Accessibility).
     static func selectedText() -> String? {
-        let opts = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: false] as CFDictionary
-        guard AXIsProcessTrustedWithOptions(opts) else { return nil }
+        guard AXIsProcessTrusted() else { return nil }
         let system = AXUIElementCreateSystemWide()
         var focused: CFTypeRef?
         guard AXUIElementCopyAttributeValue(system, kAXFocusedUIElementAttribute as CFString, &focused) == .success, let focused else { return nil }
@@ -78,6 +198,43 @@ enum Clipper {
         }
         if result.numberOfItems == 0 { return result.stringValue.map { [$0] } }
         return (1...result.numberOfItems).map { result.atIndex($0)?.stringValue ?? "" }
+    }
+}
+
+/// Brief confirmation bubble for Quick Clip (doesn't take focus).
+@MainActor
+enum Toast {
+    private static var panel: NSPanel?
+
+    static func show(_ title: String, detail: String) {
+        panel?.close()
+        let p = NSPanel(contentRect: NSRect(x: 0, y: 0, width: 360, height: 64), styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
+        p.level = .statusBar
+        p.isOpaque = false
+        p.backgroundColor = .clear
+        p.ignoresMouseEvents = true
+        p.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient]
+        let view = HStack(spacing: 10) {
+            Image(systemName: "tray.and.arrow.down.fill").font(.title2).foregroundStyle(.tint)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title).font(.headline)
+                Text(detail).font(.callout).foregroundStyle(.secondary).lineLimit(1)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(14)
+        .frame(width: 360)
+        .background(RoundedRectangle(cornerRadius: 14).fill(.regularMaterial))
+        p.contentView = NSHostingView(rootView: view)
+        if let screen = NSScreen.main {
+            let f = screen.visibleFrame
+            p.setFrameOrigin(NSPoint(x: f.maxX - 380, y: f.maxY - 90))
+        }
+        p.orderFrontRegardless()
+        panel = p
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.8) {
+            if panel === p { p.close(); panel = nil }
+        }
     }
 }
 

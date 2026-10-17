@@ -173,7 +173,28 @@ struct TaskInspector: View {
                         .textFieldStyle(.plain)
                         .font(.body)
                     }
-                    .padding(.bottom, 12)
+                    .padding(.bottom, 8)
+
+                    // Note sits right under the title so it's visible on every screen size; links are listed below it.
+                    Well {
+                        CommitField(label: "Note", value: t.note, axis: .vertical, minLines: 6) { v in
+                            model.perform("Edit Note") { $0.setTask(id, F.note, .string(v)) }
+                        }
+                        .textFieldStyle(.plain)
+                    }
+                    let urls = links(t.note)
+                    if !urls.isEmpty {
+                        VStack(alignment: .leading, spacing: 4) {
+                            ForEach(urls, id: \.self) { url in
+                                Link(destination: url) {
+                                    Label(linkTitle(url), systemImage: linkIcon(url)).lineLimit(1).truncationMode(.middle)
+                                }
+                            }
+                        }
+                        .font(.callout)
+                        .padding(.top, 6)
+                    }
+                    Spacer().frame(height: 12)
 
                     if t.isProject { projectStatus(t) } else { actionStatus(t, i) }
 
@@ -249,18 +270,6 @@ struct TaskInspector: View {
                     }
 
                     if t.isProject { reviewSection(t) }
-
-                    InspectorSection(title: "Note") {
-                        Well {
-                            CommitField(label: "Note", value: t.note, axis: .vertical, minLines: 5) { v in
-                                model.perform("Edit Note") { $0.setTask(id, F.note, .string(v)) }
-                            }
-                            .textFieldStyle(.plain)
-                        }
-                        ForEach(links(t.note), id: \.self) { url in
-                            Link(destination: url) { Label(url.absoluteString, systemImage: "link").lineLimit(1) }.font(.caption)
-                        }
-                    }
 
                     VStack(alignment: .leading, spacing: 2) {
                         if let c = t.createdAt { Text("Added \(c.formatted(date: .abbreviated, time: .shortened))") }
@@ -363,9 +372,24 @@ struct TaskInspector: View {
         }
     }
 
+    func linkTitle(_ url: URL) -> String {
+        if url.scheme == "message" { return "Open email in Mail" }
+        let host = url.host() ?? url.absoluteString
+        if host.contains("mimestream") { return "Open email in Mimestream" }
+        if host.contains("slack.com") { return "Open Slack message" }
+        return host.replacingOccurrences(of: "www.", with: "") + (url.path().count > 1 ? url.path() : "")
+    }
+
+    func linkIcon(_ url: URL) -> String {
+        let h = url.host() ?? ""
+        if url.scheme == "message" || h.contains("mimestream") { return "envelope" }
+        if h.contains("slack.com") { return "bubble.left.and.bubble.right" }
+        return "link"
+    }
+
     func links(_ note: String) -> [URL] {
         guard let det = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue) else { return [] }
-        return det.matches(in: note, range: NSRange(note.startIndex..., in: note)).compactMap(\.url).prefix(5).map { $0 }
+        return det.matches(in: note, range: NSRange(note.startIndex..., in: note)).compactMap(\.url).prefix(8).map { $0 }
     }
 }
 

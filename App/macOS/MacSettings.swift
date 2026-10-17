@@ -17,15 +17,17 @@ struct MacSettingsView: View {
 struct ShortcutSettings: View {
     @State private var quick = Shortcut.load(HotKeys.quickEntryKey, default: .quickEntryDefault)
     @State private var clip = Shortcut.load(HotKeys.clipKey, default: .clipDefault)
+    @State private var quickClip = Shortcut.load(HotKeys.quickClipKey, default: .quickClipDefault)
     @State private var axGranted = Clipper.accessibilityGranted
 
     var body: some View {
         Form {
             Section {
                 LabeledContent("Quick Entry") { ShortcutRecorder(shortcut: $quick) }
-                LabeledContent("Clip from front app") { ShortcutRecorder(shortcut: $clip) }
+                LabeledContent("Clip (review in Quick Entry)") { ShortcutRecorder(shortcut: $clip) }
+                LabeledContent("Quick Clip (save straight to Inbox)") { ShortcutRecorder(shortcut: $quickClip) }
             } footer: {
-                Text("Work from any app. Clipping grabs the page title and URL in Safari, Chrome, Arc, Brave and Edge, a link back to the selected email in Mail, and the selected text everywhere else.")
+                Text("Work from any app. Clips always carry a link back: the page URL in Safari, Chrome, Arc, Brave, Edge, Vivaldi and Orion; the email in Mail and Mimestream (select the message first); the highlighted message in Slack (hover or arrow to it); plus any selected text. Mimestream and Slack links need Accessibility access.")
             }
             Section("Selected text") {
                 HStack {
@@ -43,6 +45,7 @@ struct ShortcutSettings: View {
         .formStyle(.grouped)
         .onChange(of: quick) { _, v in Shortcut.save(v, HotKeys.quickEntryKey); HotKeys.apply() }
         .onChange(of: clip) { _, v in Shortcut.save(v, HotKeys.clipKey); HotKeys.apply() }
+        .onChange(of: quickClip) { _, v in Shortcut.save(v, HotKeys.quickClipKey); HotKeys.apply() }
         .onReceive(Timer.publish(every: 2, on: .main, in: .common).autoconnect()) { _ in axGranted = Clipper.accessibilityGranted }
     }
 }
@@ -66,7 +69,7 @@ struct ShortcutRecorder: View {
     func start() {
         recording = true
         // Temporarily release our own hotkeys so the current combination can be re-recorded.
-        HotKeyCenter.shared.unregister(id: 1); HotKeyCenter.shared.unregister(id: 2)
+        HotKeyCenter.shared.unregister(id: 1); HotKeyCenter.shared.unregister(id: 2); HotKeyCenter.shared.unregister(id: 3)
         monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { e in
             if e.keyCode == 53 { stop(); return nil } // Esc cancels
             if let s = Shortcut(event: e) { shortcut = s; stop() }
