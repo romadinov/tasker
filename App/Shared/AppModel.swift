@@ -82,6 +82,8 @@ final class AppModel {
     var selection: Set<String> = [] { didSet { pendingSelection.formUnion(selection.subtracting(oldValue)) } }
     @ObservationIgnored private var pendingSelection: Set<String> = []
     var editingID: String?
+    /// Row whose note is being edited inline.
+    var noteEditingID: String?
     var recentlyCompleted: Set<String> = []
     /// Items filed out of the Inbox this session; like OmniFocus they stay visible there until Clean Up.
     var inboxKept: Set<String> = []

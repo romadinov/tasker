@@ -125,10 +125,10 @@ struct ProjectPickerRow: View {
         let s = model.snapshot
         VStack(alignment: .leading, spacing: 6) {
             HStack {
-                Text("Project")
-                Spacer()
                 let path = s.path(of: task.id)
-                Text(path.isEmpty ? "Inbox" : path).foregroundStyle(.secondary).lineLimit(1)
+                Image(systemName: path.isEmpty ? "tray" : "circle.grid.2x2").foregroundStyle(path.isEmpty ? Color.secondary : Palette.project)
+                Text(path.isEmpty ? "Inbox" : path).lineLimit(2)
+                Spacer()
                 if s.info[task.id]?.projectID != nil {
                     Button { model.assignProject([task.id], nil) } label: { Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary) }
                         .buttonStyle(.borderless)

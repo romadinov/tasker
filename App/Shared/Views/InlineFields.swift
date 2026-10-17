@@ -11,6 +11,7 @@ struct InlineTextField: NSViewRepresentable {
     @Binding var text: String
     var placeholder: String
     var bold = false
+    var multiline = false
     var onSubmit: () -> Void
     var onCancel: () -> Void
     var onEndEditing: () -> Void
@@ -22,9 +23,18 @@ struct InlineTextField: NSViewRepresentable {
         f.focusRingType = .none
         f.placeholderString = placeholder
         f.font = bold ? .boldSystemFont(ofSize: NSFont.systemFontSize) : .systemFont(ofSize: NSFont.systemFontSize)
-        f.cell?.wraps = false
-        f.cell?.isScrollable = true
-        f.lineBreakMode = .byTruncatingTail
+        if multiline {
+            f.cell?.wraps = true
+            f.cell?.isScrollable = false
+            f.usesSingleLineMode = false
+            f.lineBreakMode = .byWordWrapping
+            f.maximumNumberOfLines = 0
+            f.textColor = .secondaryLabelColor
+        } else {
+            f.cell?.wraps = false
+            f.cell?.isScrollable = true
+            f.lineBreakMode = .byTruncatingTail
+        }
         f.delegate = context.coordinator
         f.stringValue = text
         return f
@@ -48,6 +58,8 @@ struct InlineTextField: NSViewRepresentable {
 
         func control(_ control: NSControl, textView: NSTextView, doCommandBy selector: Selector) -> Bool {
             switch selector {
+            case #selector(NSResponder.insertNewlineIgnoringFieldEditor(_:)) where parent.multiline:
+                textView.insertText("\n", replacementRange: textView.selectedRange()); return true
             case #selector(NSResponder.insertNewline(_:)):
                 finished = true; parent.onSubmit(); return true
             case #selector(NSResponder.cancelOperation(_:)):
@@ -99,7 +111,7 @@ struct ProjectChip: View {
             if let name {
                 Badge(text: name, systemImage: "circle.grid.2x2", color: Palette.project)
             } else if placeholder {
-                Badge(text: "Project", systemImage: "plus", color: .secondary)
+                Badge(text: "Project", systemImage: "circle.grid.2x2", color: .secondary.opacity(0.7))
             } else {
                 Badge(text: "Inbox", systemImage: "tray")
             }
@@ -144,7 +156,7 @@ struct TagChips: View {
                     .help("Edit tags")
             }
             if showAdd {
-                Button { open = true } label: { Badge(text: ids.isEmpty ? "Tag" : "", systemImage: "plus", color: .secondary) }
+                Button { open = true } label: { Badge(text: ids.isEmpty ? "Tags" : "", systemImage: ids.isEmpty ? "tag" : "plus", color: .secondary.opacity(0.7)) }
                     .buttonStyle(.plain)
                     .help("Add tag")
             }
@@ -192,5 +204,116 @@ struct FlagButton: View {
         }
         .buttonStyle(.plain)
         .help(task.flagged ? "Unflag (F)" : "Flag (F)")
+    }
+}
+
+/// Click-to-edit date chip (Defer / Due) for the selected row.
+struct DateChip: View {
+    @Environment(AppModel.self) private var model
+    let task: TaskItem
+    let field: String
+    let label: String
+    let icon: String
+    let date: Date?
+    let defaultHour: Int
+    var color: Color = .secondary
+    @State private var open = false
+
+    var body: some View {
+        Button { open = true } label: {
+            if let date {
+                Badge(text: Fmt.relative(date, now: model.snapshot.now), systemImage: icon, color: color, filled: color == Palette.overdue || color == Palette.dueSoon)
+            } else {
+                Badge(text: label, systemImage: icon, color: .secondary.opacity(0.7))
+            }
+        }
+        .buttonStyle(.plain)
+        .help("Set \(label.lowercased()) date")
+        .popover(isPresented: $open, arrowEdge: .bottom) {
+            VStack(alignment: .leading, spacing: 8) {
+                Text(label).font(.headline)
+                OFDateField(date: date, defaultHour: defaultHour) { model.setDate([task.id], field, $0) }
+            }
+            .padding(12)
+            .frame(width: 300)
+            .presentationCompactAdaptation(.popover)
+        }
+    }
+}
+
+/// The note shown inside the selected row: links are clickable, click "Edit" (or the text) to edit in place.
+struct InlineNote: View {
+    @Environment(AppModel.self) private var model
+    let task: TaskItem
+    @State private var editing = false
+    @State private var text = ""
+    @FocusState private var focused: Bool
+
+    var body: some View {
+        Group {
+            if editing {
+                editor
+            } else if task.note.isEmpty {
+                Button { begin() } label: {
+                    Label("Add note", systemImage: "note.text.badge.plus").font(.callout).foregroundStyle(.secondary.opacity(0.8))
+                }
+                .buttonStyle(.plain)
+            } else {
+                HStack(alignment: .top, spacing: 6) {
+                    Text(Self.linkified(task.note))
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(8)
+                        .textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    Button { begin() } label: { Image(systemName: "pencil").foregroundStyle(.secondary) }
+                        .buttonStyle(.plain)
+                        .help("Edit note")
+                }
+            }
+        }
+        .onChange(of: model.noteEditingID) { _, id in if id == task.id && !editing { begin() } }
+    }
+
+    @ViewBuilder var editor: some View {
+        #if os(macOS)
+        InlineTextField(text: $text, placeholder: "Note  (⌥↩ new line)", multiline: true,
+                        onSubmit: { commit() }, onCancel: { editing = false; model.noteEditingID = nil }, onEndEditing: { commit() })
+            .font(.callout)
+        #else
+        TextField("Note", text: $text, axis: .vertical)
+            .font(.callout)
+            .focused($focused)
+            .lineLimit(1...12)
+            .onAppear { DispatchQueue.main.async { focused = true } }
+            .onChange(of: focused) { _, f in if !f { commit() } }
+        #endif
+    }
+
+    func begin() {
+        text = task.note
+        editing = true
+        model.noteEditingID = task.id
+    }
+
+    func commit() {
+        guard editing else { return }
+        editing = false
+        model.noteEditingID = nil
+        if text != task.note { model.perform("Edit Note") { $0.setTask(task.id, F.note, .string(text)) } }
+    }
+
+    /// Note text with URLs turned into clickable links.
+    static func linkified(_ s: String) -> AttributedString {
+        var a = AttributedString(s)
+        guard let det = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue) else { return a }
+        for m in det.matches(in: s, range: NSRange(s.startIndex..., in: s)) {
+            guard let url = m.url, let r = Range(m.range, in: s),
+                  let lower = AttributedString.Index(r.lowerBound, within: a), let upper = AttributedString.Index(r.upperBound, within: a) else { continue }
+            a[lower..<upper].link = url
+            a[lower..<upper].foregroundColor = .accentColor
+            a[lower..<upper].underlineStyle = .single
+        }
+        return a
     }
 }

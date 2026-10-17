@@ -42,7 +42,7 @@ enum DebugSnapshots {
         steps.append(("inspector-autocomplete", {
             model.editingPerspective = nil
             model.sidebar = .inbox
-            if let id = model.snapshot.inboxIDs.first { model.selection = [id] }
+            if let id = model.snapshot.inboxIDs.first(where: { model.snapshot.info[$0]?.isRemaining == true }) { model.selection = [id] }
         }))
         steps.append(("new-action", {
             NSApp.activate(ignoringOtherApps: true)

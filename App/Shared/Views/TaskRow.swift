@@ -31,15 +31,35 @@ struct TaskRow: View {
                             .onTapGesture(count: 2) { model.selection = [t.id]; model.editingID = t.id }
                             #endif
                     }
-                    MetadataLine(task: t, info: i, showContext: row.showContext, showProject: row.showProject,
-                                 selected: model.selection.contains(t.id) && model.selection.count == 1)
+                    let selected = model.selection.contains(t.id) && model.selection.count == 1
+                    if selected && !t.isProject {
+                        // OmniFocus-style editable fields for the selected row.
+                        SelectedFieldsLine(task: t, info: i)
+                        InlineNote(task: t)
+                    } else {
+                        MetadataLine(task: t, info: i, showContext: row.showContext, showProject: row.showProject, selected: selected)
+                    }
                 }
                 Spacer(minLength: 0)
                 if t.isProject, let pi = s.projectInfo[t.id], pi.remainingCount > 0 {
                     Text("\(pi.availableCount)/\(pi.remainingCount)")
                         .font(.caption.monospacedDigit()).foregroundStyle(.secondary)
                 }
-                if !t.isProject { FlagButton(task: t, effective: i.effectiveFlagged) }
+                if !t.isProject {
+                    if !t.note.isEmpty || model.selection.contains(t.id) {
+                        Button {
+                            model.selection = [t.id]
+                            model.noteEditingID = t.id
+                        } label: {
+                            Image(systemName: t.note.isEmpty ? "note.text.badge.plus" : "note.text")
+                                .foregroundStyle(.secondary.opacity(t.note.isEmpty ? 0.5 : 0.9))
+                                .frame(width: 22, height: 22).contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .help("Edit note")
+                    }
+                    FlagButton(task: t, effective: i.effectiveFlagged)
+                }
             }
             .padding(.leading, CGFloat(row.depth) * 18)
             .padding(.vertical, 2)
@@ -150,7 +170,6 @@ struct MetadataLine: View {
         }
         if task.repeatRule != nil { out.append(AnyView(Image(systemName: "repeat").font(.caption).foregroundStyle(.secondary))) }
         if let e = task.estimatedMinutes { out.append(AnyView(Badge(text: Fmt.estimate(e), systemImage: "clock"))) }
-        if !task.note.isEmpty { out.append(AnyView(Image(systemName: "note.text").font(.caption).foregroundStyle(.secondary))) }
         if info.isBlocked && !task.isCompleted { out.append(AnyView(Image(systemName: "hourglass").font(.caption).foregroundStyle(.secondary))) }
         if task.isProject, task.status == .onHold { out.append(AnyView(Badge(text: "On hold", systemImage: "pause"))) }
         if task.isProject, let pi = s.projectInfo[task.id], pi.isStalled { out.append(AnyView(Badge(text: "Stalled", color: .orange))) }
@@ -192,5 +211,26 @@ struct InlineTitleEditor: View {
                 if !isFocused && hadFocus && model.editingID == task.id { model.commitInline(task.id, title: text, continueWithNew: false) }
             }
         #endif
+    }
+}
+
+/// Project · Tags · Defer · Due as click-to-edit fields (shown on the selected row).
+struct SelectedFieldsLine: View {
+    @Environment(AppModel.self) private var model
+    let task: TaskItem
+    let info: TaskInfo
+
+    var body: some View {
+        let s = model.snapshot
+        let due = task.dueDate
+        let dueColor: Color = due.map { $0 < s.now ? Palette.overdue : ($0 < s.dueSoon ? Palette.dueSoon : .secondary) } ?? .secondary
+        HStack(spacing: 6) {
+            ProjectChip(task: task, placeholder: true)
+            TagChips(task: task, showAdd: true)
+            DateChip(task: task, field: F.deferDate, label: "Defer", icon: "arrow.turn.up.right", date: task.deferDate, defaultHour: 0)
+            DateChip(task: task, field: F.dueDate, label: "Due", icon: "calendar", date: due, defaultHour: 17, color: dueColor)
+            if task.repeatRule != nil { Image(systemName: "repeat").font(.caption).foregroundStyle(.secondary) }
+            if let e = task.estimatedMinutes { Badge(text: Fmt.estimate(e), systemImage: "clock") }
+        }
     }
 }

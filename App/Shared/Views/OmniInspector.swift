@@ -214,7 +214,7 @@ struct TaskInspector: View {
                             Button("Move to Folder…") { model.moveTargetFor = [id] }.buttonStyle(.borderless)
                         }
                     } else {
-                        InspectorSection(title: "Project", trailing: i.projectID == nil ? "Inbox" : nil) {
+                        InspectorSection(title: "Project") {
                             ProjectPickerRow(task: t)
                         }
                         if i.hasChildren {
