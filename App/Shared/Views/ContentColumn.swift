@@ -15,6 +15,18 @@ struct ContentColumn: View {
     }
 
     var body: some View {
+        if model.sidebar == .nearby && model.searchText.isEmpty {
+            NearbyView()
+                .searchable(text: Bindable(model).searchText, placement: .toolbar, prompt: "Search everything")
+                #if os(iOS)
+                .toolbar { if !isCompactWidth { OmniToolbar(model: model) } }
+                #endif
+        } else {
+            listBody
+        }
+    }
+
+    @ViewBuilder var listBody: some View {
         @Bindable var model = model
         let sections = model.sections()
         VStack(spacing: 0) {

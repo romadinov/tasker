@@ -15,8 +15,13 @@ struct InspectorColumn: View {
                 } else {
                     placeholder("Nothing selected")
                 }
+            } else if model.selection.isEmpty, model.sidebar == .projects || model.sidebar == .review,
+                      model.projectFocus.count == 1, let pid = model.projectFocus.first, s.tasks[pid] != nil {
+                TaskInspector(id: pid).id(pid)
             } else if model.selection.count > 1 {
                 MultiInspector(ids: Array(model.selection))
+            } else if model.sidebar == .tags, model.tagFocus.count == 1, let tid = model.tagFocus.first, s.tags[tid] != nil {
+                TagInspector(id: tid).id(tid)
             } else if model.sidebar == .tags {
                 TagListInspector()
             } else {

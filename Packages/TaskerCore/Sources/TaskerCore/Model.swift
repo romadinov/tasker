@@ -32,6 +32,7 @@ public enum F {
     public static let groupBy = "groupBy"
     public static let sortBy = "sortBy"
     public static let value = "value"
+    public static let location = "location"
     public static let tagPrefix = "tag:"
     public static func tag(_ id: String) -> String { tagPrefix + id }
 }
@@ -181,6 +182,7 @@ public struct Tag: Identifiable, Hashable, Sendable {
     public var position = Position(parent: nil, order: "V")
     public var positionStamp: HLC = .zero
     public var status: TagStatus = .active
+    public var location: TagLocation?
     public var deleted = false
 
     public init(id: String) { self.id = id }
@@ -190,6 +192,7 @@ public struct Tag: Identifiable, Hashable, Sendable {
         name = fields[F.name]?.value.string ?? ""
         if let p = fields[F.pos] { position = Position(json: p.value); positionStamp = p.hlc }
         status = fields[F.status]?.value.string.flatMap(TagStatus.init(rawValue:)) ?? .active
+        location = fields[F.location]?.value.decode(TagLocation.self)
         deleted = fields[F.deleted]?.value.bool ?? false
     }
 }

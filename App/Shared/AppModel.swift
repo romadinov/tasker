@@ -4,20 +4,20 @@ import SwiftUI
 import TaskerCore
 
 enum SidebarItem: Hashable, Codable {
-    case inbox, forecast, flagged, projects, tags, review
+    case inbox, forecast, flagged, projects, tags, review, nearby
     case perspective(String)
 
     var title: String {
         switch self {
         case .inbox: "Inbox"; case .forecast: "Forecast"; case .flagged: "Flagged"
-        case .projects: "Projects"; case .tags: "Tags"; case .review: "Review"
+        case .projects: "Projects"; case .tags: "Tags"; case .review: "Review"; case .nearby: "Nearby"
         case .perspective: "Perspective"
         }
     }
     var icon: String {
         switch self {
         case .inbox: "tray"; case .forecast: "calendar"; case .flagged: "flag"
-        case .projects: "folder"; case .tags: "tag"; case .review: "cup.and.saucer"
+        case .projects: "folder"; case .tags: "tag"; case .review: "cup.and.saucer"; case .nearby: "location"
         case .perspective: "line.3.horizontal.decrease.circle"
         }
     }
@@ -218,6 +218,7 @@ final class AppModel {
 
     func start() {
         sync?.start()
+        NearbyModel.shared.startIfNeeded()
         let store = self.store
         DispatchQueue.global(qos: .utility).async { store.backupIfNeeded() }
     }
@@ -630,6 +631,8 @@ final class AppModel {
             }
         case .forecast:
             return forecastSections()
+        case .nearby:
+            return []
         case .perspective(let pid):
             guard let p = snapshot.perspectives.first(where: { $0.id == pid }) else { return [] }
             let sections = PerspectiveEngine(snapshot).evaluate(p)

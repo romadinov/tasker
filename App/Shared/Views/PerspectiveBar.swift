@@ -14,6 +14,13 @@ struct BarItem: Identifiable, Hashable {
 }
 
 extension AppModel {
+    /// Available actions tagged with a location that applies here and now.
+    var nearbyCount: Int {
+        let here = NearbyModel.shared.hereTagIDs
+        guard !here.isEmpty else { return 0 }
+        return Set(here.flatMap { snapshot.tasksByTag[$0] ?? [] }).filter { snapshot.info[$0]?.isAvailable == true }.count
+    }
+
     /// Built-in perspectives first, then custom ones, in sidebar order.
     var barItems: [BarItem] {
         var out: [BarItem] = [
@@ -23,6 +30,7 @@ extension AppModel {
             BarItem(item: .forecast, title: "Forecast", icon: SidebarItem.forecast.icon, count: dueSoonCount, alert: true),
             BarItem(item: .flagged, title: "Flagged", icon: SidebarItem.flagged.icon, count: flaggedCount, alert: false),
             BarItem(item: .review, title: "Review", icon: SidebarItem.review.icon, count: reviewCount, alert: false),
+            BarItem(item: .nearby, title: "Nearby", icon: SidebarItem.nearby.icon, count: nearbyCount, alert: false),
         ]
         out += snapshot.perspectives.map { BarItem(item: .perspective($0.id), title: $0.name, icon: $0.icon, count: 0, alert: false) }
         return out

@@ -2,6 +2,10 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Tasker shows actions for the shops and places you are at, in Nearby.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>Tasker can remind you of actions when you arrive at or leave a place, such as a shopping centre.</string>
 	<key>NSCalendarsFullAccessUsageDescription</key>
 	<string>Tasker shows your calendar events next to due and planned actions in Forecast.</string>
 	<key>NSCalendarsUsageDescription</key>
