@@ -225,9 +225,19 @@ struct SelectedFieldsLine: View {
         let s = model.snapshot
         let due = task.dueDate
         let dueColor: Color = due.map { $0 < s.now ? Palette.overdue : ($0 < s.dueSoon ? Palette.dueSoon : .secondary) } ?? .secondary
+        let focus = model.inlineField?.id == task.id ? model.inlineField?.field : nil
         HStack(spacing: 6) {
             InlineProjectField(task: task)
-            TagChips(task: task, showAdd: true)
+            if focus == .tags {
+                TagChips(task: task, showAdd: false)
+                InlineTagsField(task: task)
+            } else {
+                Button { model.inlineField = .init(id: task.id, field: .tags) } label: {
+                    TagChips(task: task, showAdd: true).allowsHitTesting(false)
+                }
+                .buttonStyle(.plain)
+            }
+            if focus == .flag { InlineFlagChip(task: task, focused: true) }
             DateChip(task: task, field: F.deferDate, label: "Defer", icon: "arrow.turn.up.right", date: task.deferDate, defaultHour: 0)
             DateChip(task: task, field: F.dueDate, label: "Due", icon: "calendar", date: due, defaultHour: 17, color: dueColor)
             if task.repeatRule != nil { Image(systemName: "repeat").font(.caption).foregroundStyle(.secondary) }
@@ -235,3 +245,65 @@ struct SelectedFieldsLine: View {
         }
     }
 }
+
+/// Flag as the last stop of the inline chain: Space/Return toggles, Tab/Esc returns to the list.
+struct InlineFlagChip: View {
+    @Environment(AppModel.self) private var model
+    let task: TaskItem
+    let focused: Bool
+
+    var body: some View {
+        Button { model.toggleFlag([task.id]) } label: {
+            Badge(text: task.flagged ? "Flagged" : "Flag", systemImage: task.flagged ? "flag.fill" : "flag",
+                  color: task.flagged ? Palette.flag : .secondary.opacity(0.7), filled: task.flagged)
+        }
+        .buttonStyle(.plain)
+        .overlay(RoundedRectangle(cornerRadius: 9).stroke(Color.accentColor, lineWidth: focused ? 2 : 0).padding(-2))
+        #if os(macOS)
+        .background {
+            if focused {
+                KeyCatcher { key in
+                    switch key {
+                    case .toggle: model.toggleFlag([task.id])
+                    case .next, .cancel: model.inlineField = nil
+                    }
+                }
+            }
+        }
+        #endif
+        .help("Flag (Space to toggle when focused)")
+    }
+}
+
+#if os(macOS)
+/// Invisible first responder for keyboard focus on non-text controls.
+struct KeyCatcher: NSViewRepresentable {
+    enum Key { case toggle, next, cancel }
+    let onKey: (Key) -> Void
+
+    final class CatcherView: NSView {
+        var onKey: ((Key) -> Void)?
+        override var acceptsFirstResponder: Bool { true }
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            for d in [0.0, 0.05, 0.2] {
+                DispatchQueue.main.asyncAfter(deadline: .now() + d) { [weak self] in
+                    guard let self, let w = self.window, w.firstResponder !== self else { return }
+                    w.makeFirstResponder(self)
+                }
+            }
+        }
+        override func keyDown(with e: NSEvent) {
+            switch e.keyCode {
+            case 49, 36, 76: onKey?(.toggle)     // space, return, enter
+            case 48: onKey?(.next)                // tab
+            case 53: onKey?(.cancel)              // esc
+            default: super.keyDown(with: e)
+            }
+        }
+    }
+
+    func makeNSView(context: Context) -> CatcherView { let v = CatcherView(); v.onKey = onKey; return v }
+    func updateNSView(_ v: CatcherView, context: Context) { v.onKey = onKey }
+}
+#endif

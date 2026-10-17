@@ -68,11 +68,14 @@ enum DebugSnapshots {
                 if let id = model.sections().flatMap(\.rows).dropFirst(1).first?.id {
                     model.selection = [id]
                     model.projectEditingSeed = "нт"
-                    model.projectEditingID = id
+                    model.inlineField = .init(id: id, field: .project)
                 }
             }
         }))
-        steps.append(("project-combo-close", { model.projectEditingID = nil }))
+        steps.append(("tags-combo", { if let id = model.selection.first { model.inlineField = .init(id: id, field: .tags) } }))
+        steps.append(("flag-focus", { if let id = model.selection.first { model.inlineField = .init(id: id, field: .flag) } }))
+        steps.append(("inspector-off", { model.inlineField = nil; model.showInspector = false }))
+        steps.append(("inspector-on", { model.showInspector = true }))
         steps.append(("file-in-place", {
             model.sidebar = .inbox
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {

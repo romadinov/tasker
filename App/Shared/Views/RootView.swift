@@ -92,11 +92,16 @@ extension RootView {
                 }
                 #endif
             }
-            .inspector(isPresented: $model.showInspector) {
+            // Inspector as a plain column (SwiftUI's .inspector ignored isPresented in this layout).
+            if model.showInspector {
+                InspectorResizeHandle()
                 InspectorColumn()
-                    .inspectorColumnWidth(min: 280, ideal: 340, max: 520)
+                    .frame(width: model.inspectorWidth)
+                    .background(.background.secondary)
+                    .transition(.move(edge: .trailing))
             }
         }
+        .animation(.snappy(duration: 0.2), value: model.showInspector)
         #if os(macOS)
         .toolbar(id: "main") { OmniToolbarCustomizable(model: model) }
         .background(ToolbarLabelsOn())
@@ -302,6 +307,27 @@ struct IconAboveTitle: LabelStyle {
         #else
         Label { configuration.title } icon: { configuration.icon }
         #endif
+    }
+}
+
+/// Drag to resize the inspector.
+struct InspectorResizeHandle: View {
+    @Environment(AppModel.self) private var model
+    @State private var start: CGFloat?
+    var body: some View {
+        Rectangle()
+            .fill(Color.secondary.opacity(0.18))
+            .frame(width: 1)
+            .overlay(Color.clear.frame(width: 8).contentShape(Rectangle())
+                #if os(macOS)
+                .onHover { inside in if inside { NSCursor.resizeLeftRight.push() } else { NSCursor.pop() } }
+                #endif
+                .gesture(DragGesture(minimumDistance: 1)
+                    .onChanged { v in
+                        if start == nil { start = model.inspectorWidth }
+                        model.inspectorWidth = min(max((start ?? 340) - v.translation.width, 260), 560)
+                    }
+                    .onEnded { _ in start = nil }))
     }
 }
 

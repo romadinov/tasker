@@ -15,23 +15,39 @@ struct ComboItem: Identifiable, Hashable {
     var display: String { folder.isEmpty ? title : "\(folder) : \(title)" }
 }
 
+enum ComboKind { case project, tag }
+
 @MainActor @Observable
 final class ComboState {
     var query = "" { didSet { refresh() } }
     var items: [ComboItem] = []
     var highlighted = 0
+    let kind: ComboKind
+    /// Tags already on the item (excluded from the tag list).
+    var excluded: Set<String> = []
     @ObservationIgnored let snapshot: () -> Snapshot
 
-    init(snapshot: @escaping () -> Snapshot) { self.snapshot = snapshot }
+    init(kind: ComboKind = .project, snapshot: @escaping () -> Snapshot) { self.kind = kind; self.snapshot = snapshot }
 
     func refresh() {
         let s = snapshot()
         let q = query.trimmingCharacters(in: .whitespaces)
-        var out = Lookup.projects(s, q).prefix(40).map { sug in
-            ComboItem(id: sug.id, folder: sug.subtitle ?? "", title: sug.title, onHold: s.tasks[sug.id]?.status == .onHold)
-        }
-        if !q.isEmpty && s.project(atPath: q) == nil {
-            out.append(ComboItem(id: "#new", folder: "", title: Lookup.newProjectLabel(q), onHold: false, createName: q))
+        var out: [ComboItem]
+        switch kind {
+        case .project:
+            out = Lookup.projects(s, q).prefix(40).map { sug in
+                ComboItem(id: sug.id, folder: sug.subtitle ?? "", title: sug.title, onHold: s.tasks[sug.id]?.status == .onHold)
+            }
+            if !q.isEmpty && s.project(atPath: q) == nil {
+                out.append(ComboItem(id: "#new", folder: "", title: Lookup.newProjectLabel(q), onHold: false, createName: q))
+            }
+        case .tag:
+            out = Lookup.tags(s, q, excluding: excluded).prefix(40).map { sug in
+                ComboItem(id: sug.id, folder: sug.subtitle ?? "", title: sug.title, onHold: s.tags[sug.id]?.status == .onHold)
+            }
+            if !q.isEmpty && !s.tags.values.contains(where: { $0.name.compare(q, options: .caseInsensitive) == .orderedSame }) {
+                out.append(ComboItem(id: "#new", folder: "", title: "New tag “\(q)”", onHold: false, createName: q))
+            }
         }
         items = Array(out)
         highlighted = 0
@@ -55,11 +71,11 @@ struct InlineProjectField: View {
         let s = model.snapshot
         let projectID = s.info[task.id]?.projectID
         let name = projectID.flatMap { s.tasks[$0]?.title }
-        if model.projectEditingID == task.id {
-            ProjectComboEditor(task: task, initial: model.projectEditingSeed, onDone: { model.projectEditingID = nil })
+        if model.inlineField == .init(id: task.id, field: .project) {
+            ProjectComboEditor(task: task, initial: model.projectEditingSeed, onDone: { model.inlineField = nil })
                 .frame(minWidth: 180, maxWidth: 260)
         } else {
-            Button { model.projectEditingSeed = ""; model.projectEditingID = task.id } label: {
+            Button { model.projectEditingSeed = ""; model.inlineField = .init(id: task.id, field: .project) } label: {
                 HStack(spacing: 3) {
                     Image(systemName: "circle.grid.2x2").imageScale(.small)
                     Text(name ?? "Project").lineLimit(1)
@@ -93,7 +109,7 @@ struct ProjectComboEditor: View {
 
     var body: some View {
         #if os(macOS)
-        ComboTextField(state: state, onCommit: commit, onCancel: onDone)
+        ComboTextField(state: state, placeholder: "Project", onCommit: { item, _ in commit(item); return false }, onCancel: onDone)
         #else
         TextField("Project", text: Bindable(state).query)
             .textFieldStyle(.roundedBorder)
@@ -107,13 +123,62 @@ struct ProjectComboEditor: View {
     }
 
     func commit(_ item: ComboItem?) {
-        defer { onDone() }
-        guard let item else { return }
-        if let name = item.createName {
-            model.assignProject([task.id], model.createProject(named: name))
-        } else {
-            model.assignProject([task.id], item.id)
+        if let item {
+            if let name = item.createName {
+                model.assignProject([task.id], model.createProject(named: name))
+            } else {
+                model.assignProject([task.id], item.id)
+            }
         }
+        // OmniFocus flow: Project → Tags → Flag.
+        model.inlineField = .init(id: task.id, field: .tags)
+    }
+}
+
+/// Inline tags field: Return adds the highlighted tag and stays for another;
+/// Tab (or Return on an empty field) moves on to the flag.
+struct InlineTagsField: View {
+    @Environment(AppModel.self) private var model
+    let task: TaskItem
+    @State private var state: ComboState
+
+    init(task: TaskItem) {
+        self.task = task
+        let s = ComboState(kind: .tag) { AppModel.shared.snapshot }
+        s.excluded = Set(task.tagIDs)
+        s.refresh()
+        _state = State(initialValue: s)
+    }
+
+    var body: some View {
+        #if os(macOS)
+        ComboTextField(state: state, placeholder: "Add tag", onCommit: { item, viaTab in
+            if let item, !(state.query.isEmpty && !viaTab && false) { add(item) }
+            if viaTab || item == nil { model.inlineField = .init(id: task.id, field: .flag); return false }
+            return true // stay for another tag
+        }, onCancel: { model.inlineField = nil })
+        .frame(minWidth: 140, maxWidth: 220)
+        #else
+        TextField("Add tag", text: Bindable(state).query)
+            .textFieldStyle(.roundedBorder)
+            .frame(maxWidth: 200)
+            .onSubmit {
+                if let item = state.current, !state.query.isEmpty { add(item); state.query = "" }
+                else { model.inlineField = nil }
+            }
+            .popover(isPresented: .constant(!state.query.isEmpty), arrowEdge: .bottom) {
+                ComboList(state: state, onPick: { add($0); state.query = "" })
+                    .frame(width: 320)
+                    .presentationCompactAdaptation(.popover)
+            }
+        #endif
+    }
+
+    func add(_ item: ComboItem) {
+        let id = item.createName.map { model.createTag(named: $0) } ?? item.id
+        model.perform("Add Tag") { $0.setTag(task.id, id, true) }
+        state.excluded.insert(id)
+        state.refresh()
     }
 }
 
@@ -183,7 +248,9 @@ struct ComboList: View {
 /// The list lives in a borderless child window under the field, so the table can't clip it.
 struct ComboTextField: NSViewRepresentable {
     let state: ComboState
-    let onCommit: (ComboItem?) -> Void
+    var placeholder = "Project"
+    /// (picked item or nil, pressed Tab) → true to keep the field open for another entry.
+    let onCommit: (ComboItem?, Bool) -> Bool
     let onCancel: () -> Void
 
     func makeNSView(context: Context) -> AutoFocusTextField {
@@ -192,7 +259,7 @@ struct ComboTextField: NSViewRepresentable {
         f.bezelStyle = .roundedBezel
         f.focusRingType = .none
         f.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
-        f.placeholderString = "Project"
+        f.placeholderString = placeholder
         f.delegate = context.coordinator
         f.stringValue = state.query
         context.coordinator.field = f
@@ -249,11 +316,17 @@ struct ComboTextField: NSViewRepresentable {
             panel = nil
         }
 
-        func finish(_ item: ComboItem?) {
+        func finish(_ item: ComboItem?, viaTab: Bool = false) {
             guard !done else { return }
+            if parent.onCommit(item, viaTab) {
+                // Stay open (e.g. add another tag).
+                field?.stringValue = ""
+                parent.state.query = ""
+                position()
+                return
+            }
             done = true
             hidePanel()
-            parent.onCommit(item)
         }
 
         func controlTextDidChange(_ n: Notification) {
@@ -267,7 +340,10 @@ struct ComboTextField: NSViewRepresentable {
             case #selector(NSResponder.moveDown(_:)): parent.state.move(1); return true
             case #selector(NSResponder.moveUp(_:)): parent.state.move(-1); return true
             case #selector(NSResponder.insertNewline(_:)), #selector(NSResponder.insertTab(_:)):
-                finish(parent.state.query.isEmpty && parent.state.highlighted == 0 && field?.stringValue.isEmpty == true ? nil : parent.state.current)
+                let tab = sel == #selector(NSResponder.insertTab(_:))
+                // Empty field: nothing picked, just move on.
+                let item = (field?.stringValue.isEmpty ?? true) ? nil : parent.state.current
+                finish(item, viaTab: tab)
                 return true
             case #selector(NSResponder.cancelOperation(_:)):
                 done = true; hidePanel(); parent.onCancel(); return true

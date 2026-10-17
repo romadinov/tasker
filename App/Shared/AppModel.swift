@@ -84,8 +84,13 @@ final class AppModel {
     var editingID: String?
     /// Row whose note is being edited inline.
     var noteEditingID: String?
-    /// Row whose project field is open (OmniFocus combo), and text to start with.
-    var projectEditingID: String?
+    /// Which inline field of the selected row has focus (OmniFocus chain: project → tags → flag).
+    struct InlineField: Equatable {
+        enum Field { case project, tags, flag }
+        var id: String
+        var field: Field
+    }
+    var inlineField: InlineField?
     var projectEditingSeed = ""
     var recentlyCompleted: Set<String> = []
     /// Items filed out of the Inbox this session; like OmniFocus they stay visible there until Clean Up.
@@ -173,6 +178,9 @@ final class AppModel {
     }
     var sidebarWidth: CGFloat = CGFloat(UserDefaults.standard.object(forKey: "sidebarWidth") as? Double ?? 270) {
         didSet { UserDefaults.standard.set(Double(sidebarWidth), forKey: "sidebarWidth") }
+    }
+    var inspectorWidth: CGFloat = CGFloat(UserDefaults.standard.object(forKey: "inspectorWidth") as? Double ?? 340) {
+        didSet { UserDefaults.standard.set(Double(inspectorWidth), forKey: "inspectorWidth") }
     }
     var showInspector = UserDefaults.standard.object(forKey: "showInspector") as? Bool ?? true {
         didSet { UserDefaults.standard.set(showInspector, forKey: "showInspector") }
