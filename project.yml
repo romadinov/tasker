@@ -34,6 +34,8 @@ targets:
         codeSign: true
         copy:
           destination: executables
+      - target: TaskerShareMac
+        embed: true
     settings:
       base:
         PRODUCT_NAME: Tasker
@@ -48,6 +50,19 @@ targets:
       configs:
         Release:
           CODE_SIGN_ENTITLEMENTS: App/macOS/Tasker-Release.entitlements
+  TaskerShareMac:
+    type: app-extension
+    platform: macOS
+    sources:
+      - ShareExtensionMac
+    settings:
+      base:
+        PRODUCT_NAME: TaskerShareMac
+        PRODUCT_BUNDLE_IDENTIFIER: com.romadinov.tasker.mac.share
+        INFOPLIST_FILE: ShareExtensionMac/Info.plist
+        INFOPLIST_KEY_CFBundleDisplayName: Tasker
+        CODE_SIGN_ENTITLEMENTS: ShareExtensionMac/TaskerShareMac.entitlements
+        ENABLE_HARDENED_RUNTIME: YES
   TaskerMCP:
     type: tool
     platform: macOS

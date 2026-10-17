@@ -123,5 +123,9 @@ with custom schemes (e.g. `scriptorium://…`, `message://…`) are shown as tap
 **Scriptorium**: on the Mac the clip hotkeys send Scriptorium ⌃⌘C ("Copy Link") and capture the book/page title, the
 deep link and any selected text; on iPhone/iPad use Scriptorium's "Send to Tasker" or the share sheet.
 
+**Share menu (Mac)**: Tasker appears in every app's Share menu (Safari, Finder, Scriptorium's "Share Link to Page"…).
+The extension is sandboxed, so it hands the item to the app through `tasker://add?quick=1`. If it's missing, enable it
+in System Settings → General → Login Items & Extensions → Sharing. On iPhone/iPad Tasker is in the share sheet.
+
 `tasker://clip` (Mac) runs the clipper on the frontmost app — `?quick=1` saves straight to the Inbox, `?dry=1` only
 shows what would be captured. Handy from Shortcuts or Keyboard Maestro (use `open -g` so Tasker stays in the background).
