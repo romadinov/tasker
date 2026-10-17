@@ -83,12 +83,19 @@ enum Clipper {
                 problem = .noAccessibility
             } else if let copied = copyViaKeystroke(keyCode: 8, flags: .maskCommand) {
                 link = copied.url
-                if let t = copied.text, copied.url != nil, !t.isEmpty, firstURL(in: t) == nil { capture.title = String(t.prefix(150)) }
+                // The email subject comes as the link's name; never use a URL or the mailbox name as the title.
+                if let t = copied.text?.trimmingCharacters(in: .whitespacesAndNewlines), !t.isEmpty, firstURL(in: t) == nil {
+                    capture.title = String(t.prefix(150))
+                }
                 if link == nil { problem = .selectMessage("Select the email in Mimestream's message list, then clip.") }
             } else {
                 problem = .selectMessage("Select the email in Mimestream's message list, then clip.")
             }
-            if capture.title.isEmpty { capture.title = focusedWindowTitle(of: app).map(cleanMimestreamTitle) ?? "" }
+            if capture.title.isEmpty {
+                // Window titles are the mailbox ("Inbox: Primary") unless a message window is open.
+                let w = focusedWindowTitle(of: app).map(cleanMimestreamTitle) ?? ""
+                capture.title = w.hasPrefix("Inbox") || w.contains(": ") && !w.contains(" ") ? "Email" : w
+            }
         case "com.tinyspeck.slackmacgap":
             // "L" copies the link of the highlighted message, but would type into the composer,
             // so only send it when a text field doesn't have focus.
@@ -122,7 +129,7 @@ enum Clipper {
         if let link, !link.isEmpty {
             capture.note = [link, capture.note].filter { !$0.isEmpty }.joined(separator: "\n\n")
         }
-        clipLog.info("clip app=\(bundle, privacy: .public) trusted=\(AXIsProcessTrusted()) link=\(link ?? "-", privacy: .public) problem=\(String(describing: problem), privacy: .public)")
+        clipLog.info("clip app=\(bundle, privacy: .public) trusted=\(AXIsProcessTrusted()) title=\(capture.title, privacy: .public) link=\(link ?? "-", privacy: .public) problem=\(String(describing: problem), privacy: .public)")
         return capture
     }
 
@@ -227,7 +234,7 @@ enum Clipper {
                 else if let s = v as? String { url = s; stop.pointee = true }
             }
         }
-        clipLog.info("keystroke \(keyCode) clipboard types=\(types.joined(separator: ","), privacy: .public) url=\(url ?? "-", privacy: .public)")
+        clipLog.info("keystroke \(keyCode) clipboard types=\(types.joined(separator: ","), privacy: .public) url=\(url ?? "-", privacy: .public) name=\(text ?? "-", privacy: .public)")
         let result: (text: String?, url: String?) = (text, url)
         // Put the user's clipboard back.
         pb.clearContents()
