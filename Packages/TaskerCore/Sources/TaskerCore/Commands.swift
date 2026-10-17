@@ -264,6 +264,33 @@ extension Tx {
 
     // MARK: Folders, tags, perspectives
 
+    /// Finds or creates nested folders by name ("Work", "Clients"); returns the innermost folder id.
+    public mutating func ensureFolderPath(_ names: [String]) -> String? {
+        var parent: String? = nil
+        for name in names {
+            let siblings = base.children[parent ?? Snapshot.libraryKey] ?? []
+            let existing = siblings.first { id in
+                guard let f = base.folders[id] else { return false }
+                return f.name.compare(name, options: [.caseInsensitive, .diacriticInsensitive]) == .orderedSame
+            } ?? createdFolders[(parent ?? "") + "/" + name.lowercased()]
+            if let existing { parent = existing; continue }
+            let id = createFolder(name, parent: parent)
+            createdFolders[(parent ?? "") + "/" + name.lowercased()] = id
+            parent = id
+        }
+        return parent
+    }
+
+    /// Creates a project from "Folder : Sub : Name", creating missing folders.
+    @discardableResult
+    public mutating func createProject(path: String) -> String {
+        let (folders, name) = Snapshot.splitPath(path)
+        var n = NewTask(title: name)
+        n.isProject = true
+        n.parent = ensureFolderPath(folders)
+        return createTask(n)
+    }
+
     @discardableResult
     public mutating func createFolder(_ name: String, parent: String? = nil, id: String = IDs.make()) -> String {
         markCreated(.folder, id)

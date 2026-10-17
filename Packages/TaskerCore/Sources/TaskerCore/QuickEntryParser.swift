@@ -64,7 +64,18 @@ public struct QuickEntryParser {
     }
 
     func matchProject(_ name: String) -> String? {
-        let n = name.lowercased().replacingOccurrences(of: "_", with: " ")
+        let spaced = name.replacingOccurrences(of: "_", with: " ")
+        if spaced.contains(":") {
+            // "::Common:Домашние_дела" — folder path plus project name.
+            if let exact = snapshot.project(atPath: spaced) { return exact.id }
+            let (folders, last) = Snapshot.splitPath(spaced)
+            let l = last.lowercased(), fs = folders.map { $0.lowercased() }
+            return snapshot.orderedProjects.first { p in
+                snapshot.info[p.id]?.isRemaining == true && p.title.lowercased().hasPrefix(l) &&
+                zip(snapshot.folderPath(of: p.id).map { $0.lowercased() }.suffix(fs.count), fs).allSatisfy { $0.hasPrefix($1) }
+            }?.id
+        }
+        let n = spaced.lowercased()
         let projects = snapshot.orderedProjects.filter { snapshot.info[$0.id]?.isRemaining == true }
         if let p = projects.first(where: { $0.title.lowercased() == n }) { return p.id }
         if let p = projects.first(where: { $0.title.lowercased().hasPrefix(n) }) { return p.id }

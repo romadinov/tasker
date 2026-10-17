@@ -121,6 +121,32 @@ public struct Snapshot: Sendable {
         return p
     }
 
+    /// Folder names above a project or folder, outermost first.
+    public func folderPath(of id: String) -> [String] {
+        ancestors(of: id).reversed().compactMap { folders[$0]?.name }
+    }
+
+    /// "Folder : Sub : Project" — the OmniFocus way of naming a project with its folders.
+    public func qualifiedName(of projectID: String) -> String {
+        (folderPath(of: projectID) + [tasks[projectID]?.title ?? ""]).joined(separator: " : ")
+    }
+
+    /// Splits "Common : Домашние дела" into (["Common"], "Домашние дела").
+    public static func splitPath(_ s: String) -> (folders: [String], name: String) {
+        let parts = s.split(separator: ":").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+        guard let last = parts.last else { return ([], s.trimmingCharacters(in: .whitespaces)) }
+        return (Array(parts.dropLast()), last)
+    }
+
+    /// Existing project matching a "Folder : Project" path exactly (case-insensitive), if any.
+    public func project(atPath path: String) -> TaskItem? {
+        let (folders, name) = Snapshot.splitPath(path)
+        return orderedProjects.first { p in
+            p.title.compare(name, options: [.caseInsensitive, .diacriticInsensitive]) == .orderedSame &&
+            (folders.isEmpty || folderPath(of: p.id).map { $0.lowercased() }.suffix(folders.count) == ArraySlice(folders.map { $0.lowercased() }))
+        }
+    }
+
     public func projectName(for taskID: String) -> String? {
         info[taskID]?.projectID.flatMap { tasks[$0]?.title }
     }

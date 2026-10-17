@@ -14,12 +14,15 @@ struct AutocompleteField: View {
     let placeholder: String
     let icon: String
     let suggestions: (String) -> [Suggestion]
+    /// Whether the typed text already names an existing item (hides the "New …" row).
+    var isExisting: ((String) -> Bool)? = nil
     /// e.g. { "New project “\($0)”" }; nil disables creation.
     var createLabel: ((String) -> String)?
     let onPick: (Suggestion) -> Void
     var onCreate: ((String) -> Void)?
     /// Show suggestions even before typing (useful for short lists such as tags).
     var showAllWhenEmpty = false
+
 
     @State private var text = ""
     @State private var highlighted = 0
@@ -31,6 +34,7 @@ struct AutocompleteField: View {
 
     private var canCreate: Bool {
         guard createLabel != nil, onCreate != nil, !trimmed.isEmpty else { return false }
+        if let isExisting { return !isExisting(trimmed) }
         return !items.contains { $0.title.compare(trimmed, options: [.caseInsensitive, .diacriticInsensitive]) == .orderedSame }
     }
 
@@ -116,9 +120,30 @@ struct AutocompleteField: View {
 enum Lookup {
     static func projects(_ s: Snapshot, _ q: String) -> [Suggestion] {
         let remaining = s.orderedProjects.filter { s.info[$0.id]?.isRemaining == true }
-        return rank(remaining, q, title: \.title).map {
-            Suggestion(id: $0.id, title: $0.title, subtitle: s.path(of: $0.id), icon: $0.singleActions ? "list.bullet.circle" : "circle.grid.2x2")
+        let ranked: [TaskItem]
+        if q.contains(":") {
+            // "Common : Дом" — folder segments must prefix-match the project's folders, last segment its name.
+            let (folders, name) = Snapshot.splitPath(q)
+            let fs = folders.map { $0.lowercased() }, n = name.lowercased()
+            let hits = remaining.filter { p in
+                let path = s.folderPath(of: p.id).map { $0.lowercased() }
+                let foldersMatch = fs.allSatisfy { f in path.contains { $0.hasPrefix(f) } }
+                return foldersMatch && (n.isEmpty || p.title.lowercased().contains(n))
+            }
+            ranked = rank(hits, name, title: \.title)
+        } else {
+            ranked = rank(remaining, q, title: \.title)
         }
+        return ranked.map {
+            Suggestion(id: $0.id, title: $0.title, subtitle: s.folderPath(of: $0.id).joined(separator: " : "),
+                       icon: $0.singleActions ? "list.bullet.circle" : "circle.grid.2x2")
+        }
+    }
+
+    /// "New project “Домашние дела” in Common"
+    static func newProjectLabel(_ q: String) -> String {
+        let (folders, name) = Snapshot.splitPath(q)
+        return folders.isEmpty ? "New project “\(name)”" : "New project “\(name)” in \(folders.joined(separator: " : "))"
     }
 
     static func tags(_ s: Snapshot, _ q: String, excluding: Set<String> = []) -> [Suggestion] {

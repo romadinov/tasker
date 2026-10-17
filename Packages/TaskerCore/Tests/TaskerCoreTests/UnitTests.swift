@@ -142,3 +142,27 @@ import Testing
         #expect(engine.evaluate(p).flatMap(\.taskIDs) == ["B"])
     }
 }
+
+@Suite struct ProjectPathTests {
+    @Test func createAndMatchFolderProjectPaths() throws {
+        let s = try tempStore()
+        s.transact { tx in tx.createFolder("Common", id: "fc") }
+        var id = ""
+        s.transact { tx in id = tx.createProject(path: "Common : Домашние дела") }
+        var snap = s.snapshot()
+        #expect(snap.projectInfo[id]?.folderID == "fc")           // reused existing folder
+        #expect(snap.qualifiedName(of: id) == "Common : Домашние дела")
+        #expect(snap.project(atPath: "common:домашние дела")?.id == id)
+        // Nested, with missing folders created once.
+        var a = "", b = ""
+        s.transact { tx in a = tx.createProject(path: "Work : Clients : Acme"); b = tx.createProject(path: "Work : Clients : Beta") }
+        snap = s.snapshot()
+        #expect(snap.folderPath(of: a) == ["Work", "Clients"])
+        #expect(snap.projectInfo[a]?.folderID == snap.projectInfo[b]?.folderID)
+        #expect(snap.folders.values.filter { $0.name == "Work" }.count == 1)
+        // Quick entry shorthand.
+        let r = QuickEntryParser(snapshot: snap).parse("Buy bread ::Common:Домашние_дела")
+        #expect(r.projectID == id)
+        #expect(r.title == "Buy bread")
+    }
+}

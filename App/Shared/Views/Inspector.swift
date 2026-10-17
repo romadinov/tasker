@@ -137,7 +137,8 @@ struct ProjectPickerRow: View {
             }
             AutocompleteField(placeholder: "Move to project…", icon: "circle.grid.2x2",
                               suggestions: { Lookup.projects(model.snapshot, $0) },
-                              createLabel: { "New project “\($0)”" },
+                                  isExisting: { model.snapshot.project(atPath: $0) != nil },
+                              createLabel: Lookup.newProjectLabel,
                               onPick: { model.assignProject([task.id], $0.id) },
                               onCreate: { name in model.assignProject([task.id], model.createProject(named: name)) })
         }

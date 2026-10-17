@@ -6,6 +6,7 @@ public struct Tx {
     var writes: [Write] = []
     var created: Set<EntityKey> = []
     var lastAppended: [String: String] = [:]
+    var createdFolders: [String: String] = [:]
     let snapshot: Snapshot
     let state: CRDTState
 

@@ -427,12 +427,18 @@ final class AppModel {
         moveItems(ids, to: projectID)
     }
 
+    /// Accepts "Folder : Sub : Name"; missing folders are created. Re-uses an existing project at that path.
     @discardableResult
-    func createProject(named name: String, folder: String? = nil) -> String {
+    func createProject(named path: String, folder: String? = nil) -> String {
+        if folder == nil, let existing = snapshot.project(atPath: path) { return existing.id }
         var id = ""
         perform("New Project") { tx in
-            var n = NewTask(title: name); n.isProject = true; n.parent = folder
-            id = tx.createTask(n)
+            if let folder {
+                var n = NewTask(title: path); n.isProject = true; n.parent = folder
+                id = tx.createTask(n)
+            } else {
+                id = tx.createProject(path: path)
+            }
         }
         return id
     }

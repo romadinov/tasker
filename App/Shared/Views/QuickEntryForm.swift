@@ -67,7 +67,8 @@ struct QuickEntryForm: View {
             } else {
                 AutocompleteField(placeholder: "Project (Inbox)", icon: "circle.grid.2x2",
                                   suggestions: { Lookup.projects(model.snapshot, $0) },
-                                  createLabel: { "New project “\($0)”" },
+                                  isExisting: { model.snapshot.project(atPath: $0) != nil },
+                                  createLabel: Lookup.newProjectLabel,
                                   onPick: { projectID = $0.id },
                                   onCreate: { name in projectID = model.createProject(named: name) })
             }
