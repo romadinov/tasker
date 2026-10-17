@@ -22,6 +22,36 @@ An OmniFocus-style task manager for Mac, iPhone and iPad whose sync is built so 
 | `App/iOS` | App delegate (push and background refresh) |
 | `ShareExtension` | iOS share sheet capture, which writes to the shared database and uploads immediately |
 
+## Install on your Mac
+
+```sh
+brew install xcodegen          # once
+scripts/install-mac.sh         # builds and installs /Applications/Tasker.app (iCloud Development)
+```
+
+Always run the copy in /Applications: rebuilding in `./build` replaces files under a running app and macOS
+will kill it. For TestFlight (iPhone/iPad) and notarized Mac releases see [docs/TESTFLIGHT.md](docs/TESTFLIGHT.md).
+
+## Use Tasker from Claude (MCP server + skill)
+
+1. **Connect the MCP server** (also shown, with a Copy button, in Tasker → Settings → MCP):
+   ```sh
+   claude mcp add --scope user tasker -- /Applications/Tasker.app/Contents/MacOS/tasker-mcp
+   ```
+   Claude Desktop: add to `~/Library/Application Support/Claude/claude_desktop_config.json`
+   ```json
+   { "mcpServers": { "tasker": { "command": "/Applications/Tasker.app/Contents/MacOS/tasker-mcp" } } }
+   ```
+2. **Install the skill** — teaches Claude the Tasker workflows (capture, Inbox processing, plan today,
+   weekly review) and safety rules (confirm before completing/dropping or bulk edits):
+   ```sh
+   mkdir -p ~/.claude/skills/tasker
+   cp skills/tasker/SKILL.md ~/.claude/skills/tasker/
+   ```
+   Claude Desktop / claude.ai: zip the `skills/tasker` folder and upload it under Settings → Capabilities → Skills.
+3. Try: "what's on my plate today?", "process my inbox", "add: call Anna tomorrow #phone",
+   "do my weekly review".
+
 ## Build
 
 ```sh

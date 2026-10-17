@@ -86,13 +86,20 @@ public final class CloudSync: CKSyncEngineDelegate, @unchecked Sendable {
         guard engine == nil else { return }
         // Engine state belongs to one container. If the container changed, start fresh and
         // re-upload everything so the new container gets the full history.
-        if store.meta("ck.container") != container.containerIdentifier {
-            if store.meta("ck.container") != nil {
-                note("iCloud container changed; uploading full history to the new one")
+        // Development and Production are separate databases: switching (e.g. Xcode build → TestFlight)
+        // must re-upload the full history, or the other environment starts empty.
+        let target = "\(container.containerIdentifier ?? "")#\(TaskerConfig.cloudEnvironment)"
+        let previous = store.meta("ck.container")
+        // Builds before this change stored the container id alone, and were all Development.
+        let normalizedPrevious = previous.map { $0.contains("#") ? $0 : "\($0)#Development" }
+        if normalizedPrevious != target {
+            if previous != nil {
+                note("iCloud container/environment changed (\(normalizedPrevious ?? "-") → \(target)); uploading full history")
                 store.markAllNotUploaded()
+                store.setMeta("ck.firstSyncDone", nil)
             }
             store.setMeta("ck.state", nil)
-            store.setMeta("ck.container", container.containerIdentifier)
+            store.setMeta("ck.container", target)
         }
         let saved = store.meta("ck.state").flatMap { Data(base64Encoded: $0) }
             .flatMap { try? JSONDecoder().decode(CKSyncEngine.State.Serialization.self, from: $0) }

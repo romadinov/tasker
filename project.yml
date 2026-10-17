@@ -45,6 +45,9 @@ targets:
         CODE_SIGN_ENTITLEMENTS: App/macOS/Tasker.entitlements
         ENABLE_HARDENED_RUNTIME: YES
         ENABLE_APP_SANDBOX: NO
+      configs:
+        Release:
+          CODE_SIGN_ENTITLEMENTS: App/macOS/Tasker-Release.entitlements
   TaskerMCP:
     type: tool
     platform: macOS
