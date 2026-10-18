@@ -195,7 +195,7 @@ extension Tx {
 
     // MARK: Repeating tasks
 
-    /// Like OmniFocus: a completed copy is left behind and the task's dates move to the next
+    /// A completed copy is left behind and the task's dates move to the next
     /// occurrence. The copy's id is derived from the task and occurrence, so completing the same
     /// occurrence on two offline devices converges to one copy, and dates advance only once.
     mutating func completeRepeating(_ t: TaskItem, rule: RepeatRule, at when: Date) {

@@ -1,9 +1,9 @@
 import Foundation
 
-/// Where a tag "is". Mirrors OmniFocus's tag Location inspector:
+/// Where a tag "is":
 /// - `.place`: a specific spot (searched business, address, dropped pin or "here").
 /// - `.kind`: a kind of place, matched against Apple Maps around you ("shopping centre",
-///   "Woolworths", or point-of-interest categories such as store / foodMarket). Like OmniFocus's
+///   "Woolworths", or point-of-interest categories such as store / foodMarket). Like a
 ///   search-term locations, it becomes the nearest match for wherever you are.
 public struct TagLocation: Codable, Hashable, Sendable {
     public enum Kind: String, Codable, Sendable { case place, kind }
@@ -18,7 +18,7 @@ public struct TagLocation: Codable, Hashable, Sendable {
     public var query: String?
     /// MKPointOfInterestCategory raw values for `.kind` locations.
     public var categories: [String]
-    /// Metres. OmniFocus presets: small 200, medium 500, large 10 000.
+    /// Metres. Presets: small 200, medium 500, large 10 000.
     public var radius: Double
     public var trigger: Trigger
 

@@ -22,7 +22,7 @@ struct InspectorSection<Content: View>: View {
     }
 }
 
-/// Segmented row of icon buttons (OmniFocus status / project type controls).
+/// Segmented row of icon buttons (status / project type controls).
 struct IconSegments<T: Hashable>: View {
     let options: [(value: T, icon: String, help: String)]
     let selection: T
@@ -62,7 +62,7 @@ struct Well<Content: View>: View {
     }
 }
 
-/// OmniFocus date field: typeable ("fri", "+3d", "tomorrow 5pm"), calendar popover,
+/// Date field: typeable ("fri", "+3d", "tomorrow 5pm"), calendar popover,
 /// and quick buttons Today · +1d · +1w · +1m · clear.
 struct OFDateField: View {
     @Environment(AppModel.self) private var model

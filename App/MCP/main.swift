@@ -1,18 +1,18 @@
 import Foundation
 import TaskerCore
 
-// tasker-mcp — Model Context Protocol server for Tasker (stdio, newline-delimited JSON-RPC 2.0).
+// throughline-mcp — Model Context Protocol server for Throughline (stdio, newline-delimited JSON-RPC 2.0).
 //
 // Works directly on the app's local database with its own replica id, so edits are ordinary
-// CRDT ops: the Tasker app merges them immediately (Darwin notification) and syncs them via
+// CRDT ops: the Throughline app merges them immediately (Darwin notification) and syncs them via
 // iCloud like any other device's changes. Dual-era: modern (2026-07-28, per-request `_meta`,
 // `server/discover`) and legacy (`initialize` handshake) clients are both supported.
 
 let modernVersions = ["2026-07-28"]
 let legacyVersions = ["2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05"]
-let serverInfo: JSON = .object(["name": "tasker", "title": "Tasker", "version": "0.1.0"])
+let serverInfo: JSON = .object(["name": "throughline", "title": "Throughline", "version": "0.1.0"])
 let instructions = """
-Tasker is the user's task manager (OmniFocus-style). Inbox holds unfiled actions; projects live in folders \
+Throughline is the user's task manager. Inbox holds unfiled actions; projects live in folders \
 ("Folder : Project"); tags are contexts; perspectives are saved views. Dates accept ISO 8601 or natural forms \
 like "today", "tomorrow", "fri", "+3d", "2026-11-02". Prefer search_tasks/get_perspective_items to find ids \
 before updating. Completing or dropping is reversible from the app.
@@ -26,7 +26,7 @@ func send(_ value: JSON) {
     FileHandle.standardOutput.write("\n".data(using: .utf8)!)
 }
 
-func log(_ s: String) { FileHandle.standardError.write("[tasker-mcp] \(s)\n".data(using: .utf8)!) }
+func log(_ s: String) { FileHandle.standardError.write("[throughline-mcp] \(s)\n".data(using: .utf8)!) }
 
 func reply(_ id: JSON, _ result: JSON) { send(.object(["jsonrpc": "2.0", "id": id, "result": result])) }
 func fail(_ id: JSON, _ code: Int, _ message: String, data: JSON? = nil) {

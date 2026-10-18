@@ -52,7 +52,7 @@ final class IOSAppDelegate: NSObject, UIApplicationDelegate {
 
     func applicationWillResignActive(_ application: UIApplication) {
         // Give pending uploads a chance to finish when leaving the app.
-        let task = application.beginBackgroundTask(withName: "Tasker sync")
+        let task = application.beginBackgroundTask(withName: "Throughline sync")
         Task {
             await AppModel.shared.sync?.syncNow()
             application.endBackgroundTask(task)

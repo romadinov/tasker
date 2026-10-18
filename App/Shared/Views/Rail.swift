@@ -2,7 +2,7 @@ import SwiftUI
 import TaskerCore
 
 extension SidebarItem {
-    /// OmniFocus-style colours for the perspective rail.
+    /// Colours for the perspective rail.
     var tint: Color {
         switch self {
         case .inbox: .blue; case .projects: .indigo; case .tags: .purple
@@ -110,7 +110,7 @@ struct RailButton: View {
     }
 }
 
-/// The sidebar column for the current perspective (OmniFocus layout).
+/// The sidebar column for the current perspective .
 struct PerspectiveSidebar: View {
     @Environment(AppModel.self) private var model
 
@@ -232,7 +232,7 @@ struct TagTree: View {
     }
 }
 
-/// OmniFocus-style Forecast sidebar: Past, a five-week calendar from this week, Future.
+/// Forecast sidebar: Past, a five-week calendar from this week, Future.
 struct ForecastDayList: View {
     @Environment(AppModel.self) private var model
 

@@ -19,7 +19,7 @@ struct ContentColumn: View {
             NearbyView()
                 .searchable(text: Bindable(model).searchText, placement: .toolbar, prompt: "Search everything")
                 #if os(iOS)
-                .toolbar { if !isCompactWidth { OmniToolbar(model: model) } }
+                .toolbar { if !isCompactWidth { MainToolbar(model: model) } }
                 #endif
         } else {
             listBody
@@ -64,7 +64,7 @@ struct ContentColumn: View {
             #if os(macOS)
             .listStyle(.inset(alternatesRowBackgrounds: false))
             .onDeleteCommand { model.deleteItems(Array(model.selection)) }
-            // OmniFocus bare keys: Space completes, F flags.
+            // Bare keys: Space completes, F flags.
             .onKeyPress(.space) {
                 guard model.editingID == nil, !model.selection.isEmpty else { return .ignored }
                 for id in model.selection { model.toggleComplete(id) }
@@ -110,7 +110,7 @@ struct ContentColumn: View {
         .navigationTitle(title)
         #if os(iOS)
         .navigationBarTitleDisplayMode(isCompactWidth ? .automatic : .inline)
-        .toolbar { if !isCompactWidth { OmniToolbar(model: model) } }
+        .toolbar { if !isCompactWidth { MainToolbar(model: model) } }
         #endif
         .searchable(text: $model.searchText, placement: .toolbar, prompt: "Search everything")
         #if os(iOS)
@@ -333,7 +333,7 @@ struct ItemContextMenu: View {
     }
 }
 
-/// Big OmniFocus-style title with a count, at the top of the main list.
+/// Big title with a count, at the top of the main list.
 struct PerspectiveHeader: View {
     @Environment(AppModel.self) private var model
     let sections: [OutlineSection]
@@ -410,7 +410,7 @@ struct PerspectiveHeader: View {
     }
 }
 
-/// Day strip under the Forecast title (Past, Today, the next 11 days, Future), like OmniFocus.
+/// Day strip under the Forecast title (Past, Today, the next 11 days, Future).
 struct ForecastHeaderStrip: View {
     @Environment(AppModel.self) private var model
     var body: some View {

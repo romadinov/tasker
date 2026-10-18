@@ -1,6 +1,6 @@
 import Foundation
 
-/// Derived, per-task state computed from the whole tree (OmniFocus "effective" values).
+/// Derived, per-task state computed from the whole tree ("effective" values inherited from ancestors).
 public struct TaskInfo: Hashable, Sendable {
     public var projectID: String?
     public var parentID: String?          // resolved parent (task or project), nil = inbox root
@@ -9,7 +9,7 @@ public struct TaskInfo: Hashable, Sendable {
     public var effectiveDue: Date?
     public var effectiveFlagged = false
     public var isRemaining = true          // not completed/dropped, nor any ancestor
-    /// Completed/dropped either itself or via the nearest ancestor that is (OmniFocus semantics).
+    /// Completed/dropped either itself or via the nearest ancestor that is.
     public var effectivelyCompleted = false
     public var effectivelyDropped = false
     public var isAvailable = false
@@ -126,7 +126,7 @@ public struct Snapshot: Sendable {
         ancestors(of: id).reversed().compactMap { folders[$0]?.name }
     }
 
-    /// "Folder : Sub : Project" — the OmniFocus way of naming a project with its folders.
+    /// "Folder : Sub : Project" — a project named with its folders.
     public func qualifiedName(of projectID: String) -> String {
         (folderPath(of: projectID) + [tasks[projectID]?.title ?? ""]).joined(separator: " : ")
     }
@@ -309,7 +309,7 @@ extension Snapshot {
                 childCtx.blocked = i.isBlocked
                 childCtx.depth = ctx.depth + 1
                 // Children are visited before this task's "first available" status is decided,
-                // so the next action is the first available *leaf*, as in OmniFocus.
+                // so the next action is the first available *leaf*.
                 let sub = walk(container: id, ctx: childCtx, sequential: t.sequential, firstAvailableHolder: &firstAvailableHolder)
                 i.remainingChildren = sub.remaining
                 if i.hasChildren && sub.remaining > 0 {

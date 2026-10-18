@@ -1,4 +1,4 @@
-# Shipping Tasker: TestFlight (iPhone/iPad) and Developer ID (Mac)
+# Shipping Throughline: TestFlight (iPhone/iPad) and Developer ID (Mac)
 
 ## Why two channels
 
@@ -31,7 +31,7 @@ its complete history to the new one (merging is idempotent, so nothing duplicate
    TestFlight install.
 2. **App Store Connect app record.** <https://appstoreconnect.apple.com> → *Apps* → *+* → *New App*:
    platform iOS, bundle ID `com.romadinov.tasker`, SKU e.g. `tasker-ios`. The display name must be unique on the
-   App Store ("Tasker" is likely taken); the name in App Store Connect can differ from the home-screen name.
+   App Store ("Throughline" is likely taken); the name in App Store Connect can differ from the home-screen name.
 3. **TestFlight testers.** App → *TestFlight* → *Internal Testing* → add yourself. Internal builds need no review.
 4. **Mac notarization credentials** (for `release-mac.sh`):
    `xcrun notarytool store-credentials tasker-notary --apple-id <apple id> --team-id SZVSSCJQFN`
@@ -41,7 +41,7 @@ its complete history to the new one (merging is idempotent, so nothing duplicate
 
 ```sh
 scripts/testflight.sh      # iPhone + iPad (+ share extension) → TestFlight
-scripts/release-mac.sh     # Mac → build/release/Tasker.app, notarized
+scripts/release-mac.sh     # Mac → build/release/Throughline.app, notarized
 ```
 
 Build numbers are timestamps, so every upload is unique. Export compliance is pre-answered

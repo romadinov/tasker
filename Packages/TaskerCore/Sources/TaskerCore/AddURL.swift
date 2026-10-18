@@ -1,6 +1,6 @@
 import Foundation
 
-/// `tasker://add?…` — lets other apps (e.g. Scriptorium) send an item to Tasker.
+/// `tasker://add?…` — lets other apps (e.g. Scriptorium) send an item to Throughline.
 ///
 ///     tasker://add?title=Chapter%203%20notes&url=scriptorium://open?doc=…&note=…&project=Reading&tags=Books,Mac
 ///                 &flagged=1&due=fri&defer=tomorrow&quick=1&x-success=scriptorium://
@@ -8,7 +8,7 @@ import Foundation
 /// - `title` (required unless `note`/`url` given), `note`, `url` (put first in the note, as a link)
 /// - `project`: "Folder : Project" or a fuzzy name; `tags`: comma-separated names
 /// - `flagged`: 1/true; `due`, `defer`, `planned`: ISO 8601 or natural ("fri", "+3d")
-/// - `quick=1`: save straight to Tasker without showing Quick Entry
+/// - `quick=1`: save straight to Throughline without showing Quick Entry
 /// - `x-success`: URL opened after a quick save (return to the calling app)
 public struct AddRequest: Equatable, Sendable {
     public var title = ""
@@ -24,7 +24,7 @@ public struct AddRequest: Equatable, Sendable {
     public var xSuccess: URL?
 
     public init?(url: URL) {
-        guard url.scheme?.lowercased() == "tasker", url.host?.lowercased() == "add" || url.path.lowercased() == "/add" || url.path.lowercased() == "add",
+        guard ["throughline", "tasker"].contains(url.scheme?.lowercased() ?? ""), url.host?.lowercased() == "add" || url.path.lowercased() == "/add" || url.path.lowercased() == "add",
               let items = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems else { return nil }
         func value(_ k: String) -> String? {
             items.first { $0.name.lowercased() == k }?.value?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty

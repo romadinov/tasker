@@ -20,7 +20,7 @@ public struct QuickEntryParser {
     public let snapshot: Snapshot
     public var now: Date
     public var calendar = Calendar.current
-    /// OmniFocus defaults: due at 17:00, defer at 00:00, planned at 09:00.
+    /// Defaults: due at 17:00, defer at 00:00, planned at 09:00.
     public var dueHour = 17, deferHour = 0, plannedHour = 9
 
     public init(snapshot: Snapshot, now: Date = Date()) {

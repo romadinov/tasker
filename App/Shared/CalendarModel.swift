@@ -2,7 +2,7 @@ import EventKit
 import Observation
 import SwiftUI
 
-/// Calendar events shown in Forecast (read-only), like OmniFocus.
+/// Calendar events shown in Forecast (read-only).
 @MainActor @Observable
 final class CalendarModel {
     static let shared = CalendarModel()

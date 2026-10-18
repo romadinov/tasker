@@ -121,7 +121,7 @@ import Testing
         #expect(snap.info["S1"]?.isRemaining == false)
     }
 
-    @Test func perspectiveRulesInOmniFocusDialect() throws {
+    @Test func perspectiveRulesInJSONDialect() throws {
         let s = try tempStore()
         s.transact { tx in
             tx.createTag("Office", id: "office")

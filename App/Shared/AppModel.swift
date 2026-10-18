@@ -84,7 +84,7 @@ final class AppModel {
     var editingID: String?
     /// Row whose note is being edited inline.
     var noteEditingID: String?
-    /// Which inline field of the selected row has focus (OmniFocus chain: project → tags → flag).
+    /// Which inline field of the selected row has focus (chain: project → tags → flag).
     struct InlineField: Equatable {
         enum Field { case project, tags, flag }
         var id: String
@@ -93,7 +93,7 @@ final class AppModel {
     var inlineField: InlineField?
     var projectEditingSeed = ""
     var recentlyCompleted: Set<String> = []
-    /// Items filed out of the Inbox this session; like OmniFocus they stay visible there until Clean Up.
+    /// Items filed out of the Inbox this session; they stay visible there until Clean Up.
     var inboxKept: Set<String> = []
     /// Where each filed item sat: the inbox item just above it (nil = top), so it can stay in place.
     @ObservationIgnored var inboxAnchor: [String: String?] = [:]
@@ -109,7 +109,7 @@ final class AppModel {
     var projectFocus: Set<String> = [] { didSet { if projectFocus != oldValue { recordNav() } } }
     /// Sidebar selection in Tags.
     var tagFocus: Set<String> = [] { didSet { if tagFocus != oldValue { recordNav() } } }
-    /// OmniFocus "Focus": when set, every view only shows these projects/folders and their contents.
+    /// Focus: when set, every view only shows these projects/folders and their contents.
     var focusIDs: Set<String> = []
 
     // MARK: Back / Forward
@@ -364,7 +364,7 @@ final class AppModel {
         selection = [id]
     }
 
-    /// Ends inline editing; Return on a non-empty title opens the next sibling (OmniFocus style).
+    /// Ends inline editing; Return on a non-empty title opens the next sibling.
     func commitInline(_ id: String, title: String, continueWithNew: Bool) {
         let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmed.isEmpty {
@@ -435,7 +435,7 @@ final class AppModel {
         if let target { expanded.insert(target) }
     }
 
-    /// OmniFocus "Clean Up": hide completed items and items already filed out of the Inbox.
+    /// Clean Up: hide completed items and items already filed out of the Inbox.
     func cleanUp() {
         recentlyCompleted = []
         inboxKept = []
@@ -549,7 +549,7 @@ final class AppModel {
             let id = quickAdd(title: title, note: r.fullNote, projectID: projectID, tagIDs: tagIDs, flagged: r.flagged,
                               deferDate: date(r.deferDate, 0), dueDate: date(r.due, 17))
             if let id, let planned = date(r.planned, 9) { perform("Planned") { $0.setTask(id, F.plannedDate, .date(planned)) } }
-            banner = "Added to Tasker: \(title)"
+            banner = "Added to Throughline: \(title)"
             DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) { [weak self] in self?.banner = nil }
             #if os(macOS)
             NotificationCenter.default.post(name: .taskerQuickAdded, object: title)

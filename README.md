@@ -1,6 +1,9 @@
-# Tasker
+# Throughline
 
-An OmniFocus-style task manager for Mac, iPhone and iPad whose sync is built so it can't get stuck.
+> Not affiliated with or endorsed by The Omni Group. OmniFocus is a trademark of The Omni Group; it is mentioned
+> only to describe Throughline's import feature.
+
+A GTD-style task manager for Mac, iPhone and iPad, with OmniFocus import, and sync built so it can't get stuck.
 
 ## Why sync keeps working
 
@@ -26,23 +29,23 @@ An OmniFocus-style task manager for Mac, iPhone and iPad whose sync is built so 
 
 ```sh
 brew install xcodegen          # once
-scripts/install-mac.sh         # builds and installs /Applications/Tasker.app (iCloud Development)
+scripts/install-mac.sh         # builds and installs /Applications/Throughline.app (iCloud Development)
 ```
 
 Always run the copy in /Applications: rebuilding in `./build` replaces files under a running app and macOS
 will kill it. For TestFlight (iPhone/iPad) and notarized Mac releases see [docs/TESTFLIGHT.md](docs/TESTFLIGHT.md).
 
-## Use Tasker from Claude (MCP server + skill)
+## Use Throughline from Claude (MCP server + skill)
 
-1. **Connect the MCP server** (also shown, with a Copy button, in Tasker → Settings → MCP):
+1. **Connect the MCP server** (also shown, with a Copy button, in Throughline → Settings → MCP):
    ```sh
-   claude mcp add --scope user tasker -- /Applications/Tasker.app/Contents/MacOS/tasker-mcp
+   claude mcp add --scope user throughline -- /Applications/Throughline.app/Contents/MacOS/throughline-mcp
    ```
    Claude Desktop: add to `~/Library/Application Support/Claude/claude_desktop_config.json`
    ```json
-   { "mcpServers": { "tasker": { "command": "/Applications/Tasker.app/Contents/MacOS/tasker-mcp" } } }
+   { "mcpServers": { "throughline": { "command": "/Applications/Throughline.app/Contents/MacOS/throughline-mcp" } } }
    ```
-2. **Install the skill** — teaches Claude the Tasker workflows (capture, Inbox processing, plan today,
+2. **Install the skill** — teaches Claude the Throughline workflows (capture, Inbox processing, plan today,
    weekly review) and safety rules (confirm before completing/dropping or bulk edits):
    ```sh
    mkdir -p ~/.claude/skills/tasker
@@ -79,7 +82,7 @@ Mac app → Settings → Import → *Read from OmniFocus*. This runs an Omni Aut
 |---|---|
 | ⌃⌥Space | Quick Entry from any app (configurable) |
 | ⌃⌥⌘Space | Clip from the front app: browser page, Mail message link, or selected text (configurable) |
-| Services → Send to Tasker | Selected text from any app |
+| Services → Send to Throughline | Selected text from any app |
 | ⌘N / ⇧⌘N / ⌥⇧⌘N | New action / project / folder |
 | ↩ | Edit title (↩ again adds the next sibling) |
 | Space | Complete (in the list) |
@@ -99,20 +102,20 @@ Quick-entry shorthand: `#tag ::project ! due:fri defer:tomorrow plan:+3d ~30m`
 
 ## MCP server (macOS)
 
-`Tasker.app/Contents/MacOS/tasker-mcp` is a stdio MCP server (dual-era: 2026-07-28 per-request `_meta` and legacy `initialize`). It opens the app's database with its own replica id, so its edits are ordinary CRDT ops: the app merges them immediately and syncs them via iCloud. Setup snippets are in Settings → MCP.
+`Throughline.app/Contents/MacOS/throughline-mcp` is a stdio MCP server (dual-era: 2026-07-28 per-request `_meta` and legacy `initialize`). It opens the app's database with its own replica id, so its edits are ordinary CRDT ops: the app merges them immediately and syncs them via iCloud. Setup snippets are in Settings → MCP.
 
 ```sh
-claude mcp add --scope user tasker -- "/Applications/Tasker.app/Contents/MacOS/tasker-mcp"
+claude mcp add --scope user throughline -- "/Applications/Throughline.app/Contents/MacOS/throughline-mcp"
 ```
 
 Tools: `list_perspectives`, `get_perspective_items`, `search_tasks`, `get_task`, `list_projects`, `list_tags`, `create_task`, `update_task`, `complete_task`, `drop_task`, `create_project`, `mark_reviewed`. Set `TASKER_DB=/path/to/copy.sqlite` to point it at a test database.
 
-## Sending items from other apps (`tasker://add`)
+## Sending items from other apps (`throughline://add`)
 
 Mac, iPhone and iPad register the `tasker` URL scheme:
 
 ```
-tasker://add?title=<text>&note=<text>&url=<link>&project=<"Folder : Project" or name>&tags=<a,b>
+throughline://add?title=<text>&note=<text>&url=<link>&project=<"Folder : Project" or name>&tags=<a,b>
             &flagged=1&due=<ISO or "fri"/"+3d">&defer=…&planned=…&quick=1&x-success=<return URL>
 ```
 
@@ -121,11 +124,11 @@ Without `quick` Quick Entry opens pre-filled; with `quick=1` the item is saved s
 with custom schemes (e.g. `scriptorium://…`, `message://…`) are shown as tappable links.
 
 **Scriptorium**: on the Mac the clip hotkeys send Scriptorium ⌃⌘C ("Copy Link") and capture the book/page title, the
-deep link and any selected text; on iPhone/iPad use Scriptorium's "Send to Tasker" or the share sheet.
+deep link and any selected text; on iPhone/iPad use Scriptorium's "Send to Throughline" or the share sheet.
 
-**Share menu (Mac)**: Tasker appears in every app's Share menu (Safari, Finder, Scriptorium's "Share Link to Page"…).
-The extension is sandboxed, so it hands the item to the app through `tasker://add?quick=1`. If it's missing, enable it
-in System Settings → General → Login Items & Extensions → Sharing. On iPhone/iPad Tasker is in the share sheet.
+**Share menu (Mac)**: Throughline appears in every app's Share menu (Safari, Finder, Scriptorium's "Share Link to Page"…).
+The extension is sandboxed, so it hands the item to the app through `throughline://add?quick=1`. If it's missing, enable it
+in System Settings → General → Login Items & Extensions → Sharing. On iPhone/iPad Throughline is in the share sheet.
 
-`tasker://clip` (Mac) runs the clipper on the frontmost app — `?quick=1` saves straight to the Inbox, `?dry=1` only
-shows what would be captured. Handy from Shortcuts or Keyboard Maestro (use `open -g` so Tasker stays in the background).
+`throughline://clip` (Mac) runs the clipper on the frontmost app — `?quick=1` saves straight to the Inbox, `?dry=1` only
+shows what would be captured. Handy from Shortcuts or Keyboard Maestro (use `open -g` so Throughline stays in the background).

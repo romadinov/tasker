@@ -4,7 +4,7 @@ import os
 import SwiftUI
 import TaskerCore
 
-private let clipLog = Logger(subsystem: "Tasker", category: "clip")
+private let clipLog = Logger(subsystem: "Throughline", category: "clip")
 
 /// The clipper: captures what you're looking at in the frontmost app.
 /// - Browsers (Safari, Chrome, Arc, Brave, Edge, Vivaldi, Orion): page title + URL (+ selected text)
@@ -21,7 +21,7 @@ enum Clipper {
         case info(String)
         var description: String {
             switch self {
-            case .noAccessibility: "Tasker needs Accessibility access to link emails and Slack messages. Allow it in System Settings → Privacy & Security → Accessibility."
+            case .noAccessibility: "Throughline needs Accessibility access to link emails and Slack messages. Allow it in System Settings → Privacy & Security → Accessibility."
             case .selectMessage(let s), .info(let s): s
             }
         }
@@ -303,7 +303,7 @@ enum Clipper {
     private static func runScript(_ source: String) -> [String]? {
         var error: NSDictionary?
         guard let result = NSAppleScript(source: source)?.executeAndReturnError(&error) else {
-            NSLog("Tasker clipper: \(error ?? [:])")
+            NSLog("Throughline clipper: \(error ?? [:])")
             return nil
         }
         if result.numberOfItems == 0 { return result.stringValue.map { [$0] } }
@@ -348,7 +348,7 @@ enum Toast {
     }
 }
 
-/// Services menu: "Send to Tasker" from any app (assign a shortcut in System Settings → Keyboard).
+/// Services menu: "Send to Throughline" from any app (assign a shortcut in System Settings → Keyboard).
 final class ServicesProvider: NSObject {
     @objc func sendToInbox(_ pboard: NSPasteboard, userData: String?, error: AutoreleasingUnsafeMutablePointer<NSString?>) {
         let text = pboard.string(forType: .string) ?? pboard.string(forType: .URL) ?? ""

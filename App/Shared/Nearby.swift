@@ -9,7 +9,7 @@ import UserNotifications
 /// - Specific places: distance from you ≤ the tag's radius.
 /// - Kinds of place ("shopping centre", "Woolworths", store / food market categories): Apple Maps
 ///   is searched around you; you're "there" when the nearest match is within the radius.
-///   This is OmniFocus's search-term location, which "becomes the nearest search result".
+///   A search-term location resolves to the nearest search result for where you are.
 @MainActor @Observable
 final class NearbyModel: NSObject, CLLocationManagerDelegate {
     static let shared = NearbyModel()

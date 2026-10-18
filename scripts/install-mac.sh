@@ -6,9 +6,11 @@ cd "$(dirname "$0")/.."
 CONFIG="${1:-Debug}"   # Debug = iCloud Development environment (same as Xcode-run iOS builds)
 xcodegen generate >/dev/null
 xcodebuild -project Tasker.xcodeproj -scheme TaskerMac -configuration "$CONFIG" -derivedDataPath build -allowProvisioningUpdates build | grep -E "error:|BUILD" || true
-pkill -x Tasker 2>/dev/null || true
-sleep 1
+pkill -x Throughline 2>/dev/null || true
+pkill -x Tasker 2>/dev/null || true          # the app's former name
 rm -rf /Applications/Tasker.app
-ditto "build/Build/Products/$CONFIG/Tasker.app" /Applications/Tasker.app
-open /Applications/Tasker.app
-echo "Installed /Applications/Tasker.app ($CONFIG)"
+sleep 1
+rm -rf /Applications/Throughline.app
+ditto "build/Build/Products/$CONFIG/Throughline.app" /Applications/Throughline.app
+open /Applications/Throughline.app
+echo "Installed /Applications/Throughline.app ($CONFIG)"

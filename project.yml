@@ -38,10 +38,10 @@ targets:
         embed: true
     settings:
       base:
-        PRODUCT_NAME: Tasker
+        PRODUCT_NAME: Throughline
         PRODUCT_BUNDLE_IDENTIFIER: com.romadinov.tasker.mac
         INFOPLIST_FILE: App/macOS/Info.plist
-        INFOPLIST_KEY_CFBundleDisplayName: Tasker
+        INFOPLIST_KEY_CFBundleDisplayName: Throughline
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.productivity
         INFOPLIST_KEY_NSHumanReadableCopyright: ""
         CODE_SIGN_ENTITLEMENTS: App/macOS/Tasker.entitlements
@@ -60,7 +60,7 @@ targets:
         PRODUCT_NAME: TaskerShareMac
         PRODUCT_BUNDLE_IDENTIFIER: com.romadinov.tasker.mac.share
         INFOPLIST_FILE: ShareExtensionMac/Info.plist
-        INFOPLIST_KEY_CFBundleDisplayName: Tasker
+        INFOPLIST_KEY_CFBundleDisplayName: Throughline
         CODE_SIGN_ENTITLEMENTS: ShareExtensionMac/TaskerShareMac.entitlements
         ENABLE_HARDENED_RUNTIME: YES
   TaskerMCP:
@@ -72,7 +72,7 @@ targets:
       - package: TaskerCore
     settings:
       base:
-        PRODUCT_NAME: tasker-mcp
+        PRODUCT_NAME: throughline-mcp
         PRODUCT_BUNDLE_IDENTIFIER: com.romadinov.tasker.mcp
         ENABLE_HARDENED_RUNTIME: YES
         SKIP_INSTALL: YES
@@ -89,10 +89,10 @@ targets:
       - target: TaskerShare
     settings:
       base:
-        PRODUCT_NAME: Tasker
+        PRODUCT_NAME: Throughline
         PRODUCT_BUNDLE_IDENTIFIER: com.romadinov.tasker
         INFOPLIST_FILE: App/iOS/Info.plist
-        INFOPLIST_KEY_CFBundleDisplayName: Tasker
+        INFOPLIST_KEY_CFBundleDisplayName: Throughline
         INFOPLIST_KEY_UILaunchScreen_Generation: YES
         INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad: "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
         INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone: "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
@@ -110,7 +110,7 @@ targets:
         PRODUCT_NAME: TaskerShare
         PRODUCT_BUNDLE_IDENTIFIER: com.romadinov.tasker.share
         INFOPLIST_FILE: ShareExtension/Info.plist
-        INFOPLIST_KEY_CFBundleDisplayName: Tasker
+        INFOPLIST_KEY_CFBundleDisplayName: Throughline
         CODE_SIGN_ENTITLEMENTS: ShareExtension/TaskerShare.entitlements
         TARGETED_DEVICE_FAMILY: "1,2"
         APPLICATION_EXTENSION_API_ONLY: YES

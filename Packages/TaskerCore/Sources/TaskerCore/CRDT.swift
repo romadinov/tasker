@@ -158,7 +158,7 @@ public struct CRDTState: Sendable {
 public enum IDs {
     static let alphabet = Array("0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz")
 
-    /// 11-character base62 random id (≈65 bits), the same shape OmniFocus uses.
+    /// 11-character base62 random id (≈65 bits).
     public static func make() -> String {
         var g = SystemRandomNumberGenerator()
         return String((0..<11).map { _ in alphabet[Int(g.next() % 62)] })

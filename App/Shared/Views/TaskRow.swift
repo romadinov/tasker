@@ -34,7 +34,7 @@ struct TaskRow: View {
                     }
                     let selected = model.selection.contains(t.id) && model.selection.count == 1
                     if selected && !t.isProject {
-                        // OmniFocus-style editable fields for the selected row.
+                        // Editable fields for the selected row.
                         SelectedFieldsLine(task: t, info: i)
                         InlineNote(task: t)
                     } else {

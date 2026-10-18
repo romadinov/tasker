@@ -39,7 +39,7 @@ struct ShortcutSettings: View {
                 }
             }
             Section("Services menu") {
-                Text("Any app: select text → right-click → Services → Send to Tasker. You can give it a shortcut in System Settings → Keyboard → Keyboard Shortcuts → Services.")
+                Text("Any app: select text → right-click → Services → Send to Throughline. You can give it a shortcut in System Settings → Keyboard → Keyboard Shortcuts → Services.")
                     .font(.callout).foregroundStyle(.secondary)
             }
         }
@@ -95,7 +95,7 @@ struct OmniFocusImportView: View {
     var body: some View {
         Form {
             Section {
-                Text("Reads your OmniFocus database through OmniFocus's own automation, so ids, folders, tags, repeat rules, review intervals and custom perspective rules come across exactly. OmniFocus must be installed; macOS will ask once to let Tasker control it. Re-importing later refreshes items instead of duplicating them.")
+                Text("Reads your OmniFocus database through OmniFocus's own automation, so ids, folders, tags, repeat rules, review intervals and custom perspective rules come across exactly. OmniFocus must be installed; macOS will ask once to let Throughline control it. Re-importing later refreshes items instead of duplicating them.")
                     .font(.callout).foregroundStyle(.secondary)
             }
             Section {
@@ -201,17 +201,17 @@ enum OmniFocusRunner {
     }
 }
 
-/// Connect AI assistants (Claude Code, Claude Desktop, any MCP client) to Tasker.
+/// Connect AI assistants (Claude Code, Claude Desktop, any MCP client) to Throughline.
 struct MCPSettingsView: View {
     @State private var copied: String?
 
-    var path: String { Bundle.main.bundleURL.appendingPathComponent("Contents/MacOS/tasker-mcp").path }
-    var claudeCode: String { "claude mcp add --scope user tasker -- \"\(path)\"" }
+    var path: String { Bundle.main.bundleURL.appendingPathComponent("Contents/MacOS/throughline-mcp").path }
+    var claudeCode: String { "claude mcp add --scope user throughline -- \"\(path)\"" }
     var desktopJSON: String {
         """
         {
           "mcpServers": {
-            "tasker": { "command": "\(path)" }
+            "throughline": { "command": "\(path)" }
           }
         }
         """
@@ -221,10 +221,10 @@ struct MCPSettingsView: View {
     var body: some View {
         Form {
             Section {
-                Text("Tasker includes an MCP server, so assistants can read your perspectives, search, and add or update actions. It works on this Mac's database directly; changes appear in the app at once and sync to your other devices via iCloud.")
+                Text("Throughline includes an MCP server, so assistants can read your perspectives, search, and add or update actions. It works on this Mac's database directly; changes appear in the app at once and sync to your other devices via iCloud.")
                     .font(.callout).foregroundStyle(.secondary)
                 if !inApplications {
-                    Label("Tasker isn't in /Applications. If you move it later, update the path below in your MCP client.", systemImage: "exclamationmark.triangle")
+                    Label("Throughline isn't in /Applications. If you move it later, update the path below in your MCP client.", systemImage: "exclamationmark.triangle")
                         .font(.caption).foregroundStyle(.orange)
                 }
             }

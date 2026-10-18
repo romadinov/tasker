@@ -61,7 +61,7 @@ final class ComboState {
     var current: ComboItem? { items.indices.contains(highlighted) ? items[highlighted] : nil }
 }
 
-/// OmniFocus-style project field for the selected row: click → type → dropdown of
+/// Project field for the selected row: click → type → dropdown of
 /// "Folder : Project" with typed letters highlighted → Return picks.
 struct InlineProjectField: View {
     @Environment(AppModel.self) private var model
@@ -130,7 +130,7 @@ struct ProjectComboEditor: View {
                 model.assignProject([task.id], item.id)
             }
         }
-        // OmniFocus flow: Project → Tags → Flag.
+        // Flow: Project → Tags → Flag.
         model.inlineField = .init(id: task.id, field: .tags)
     }
 }
@@ -226,7 +226,7 @@ struct ComboList: View {
         if !item.folder.isEmpty, let r = a.range(of: item.folder) {
             if !selected { a[r].foregroundColor = item.onHold ? Color.secondary.opacity(0.7) : .secondary }
         }
-        // Highlight the typed letters in the project name (OmniFocus shows them on a yellow tint).
+        // Highlight the typed letters in the project name (yellow tint).
         let titleOffset = text.count - item.title.count
         let positions = Fuzzy.matchPositions(state.query, item.title).map { $0 + titleOffset }
         let chars = Array(text)

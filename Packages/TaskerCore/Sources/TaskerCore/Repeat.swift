@@ -1,6 +1,6 @@
 import Foundation
 
-/// Repetition, compatible with OmniFocus: an RFC 5545 RRULE plus a schedule type.
+/// Repetition: an RFC 5545 RRULE plus a schedule type.
 public struct RepeatRule: Hashable, Sendable, Codable {
     public enum Anchor: String, Sendable, Codable, CaseIterable { case due, deferDate = "defer", planned }
 

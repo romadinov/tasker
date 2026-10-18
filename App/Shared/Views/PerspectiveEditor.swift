@@ -1,7 +1,7 @@
 import SwiftUI
 import TaskerCore
 
-/// Rule builder. Rules are stored in OmniFocus's `archivedFilterRules` JSON dialect.
+/// Rule builder. Rules use the same JSON rule format as imported OmniFocus perspectives, so imports keep working.
 struct PerspectiveEditor: View {
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss

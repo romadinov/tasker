@@ -37,7 +37,7 @@ extension AppModel {
     }
 }
 
-/// One perspective button: icon with label underneath, OmniFocus-toolbar style.
+/// One perspective button: icon with label underneath.
 struct PerspectiveButton: View {
     @Environment(AppModel.self) private var model
     let bar: BarItem

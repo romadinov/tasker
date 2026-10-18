@@ -18,7 +18,7 @@ struct RootView: View {
     var body: some View {
         @Bindable var model = model
         Group {
-            if isCompact { compactLayout } else { omniLayout }
+            if isCompact { compactLayout } else { railLayout }
         }
         .onAppear { model.undoManager = undoManager }
         .onChange(of: undoManager) { _, new in model.undoManager = new }
@@ -59,8 +59,8 @@ extension RootView {
         }
     }
 
-    /// Mac & iPad: perspective rail | perspective sidebar | main | inspector, like OmniFocus.
-    var omniLayout: some View {
+    /// Mac & iPad: perspective rail | perspective sidebar | main | inspector.
+    var railLayout: some View {
         @Bindable var model = model
         return HStack(spacing: 0) {
             PerspectiveRail()
@@ -114,7 +114,7 @@ extension RootView {
         }
         .animation(.snappy(duration: 0.2), value: model.showInspector)
         #if os(macOS)
-        .toolbar(id: "main") { OmniToolbarCustomizable(model: model) }
+        .toolbar(id: "main") { MainToolbarCustomizable(model: model) }
         .background(ToolbarLabelsOn())
         #endif
     }
@@ -179,7 +179,7 @@ struct SidebarView: View {
                 .foregroundStyle(.secondary)
             }
         }
-        .navigationTitle("Tasker")
+        .navigationTitle("Throughline")
         .safeAreaInset(edge: .bottom) { SyncBadge().padding(8) }
         #if os(iOS)
         .toolbar {
@@ -247,8 +247,8 @@ struct SyncBadge: View {
     }
 }
 
-/// OmniFocus toolbar: Back/Forward and View · New Action, Quick Entry, Focus · Search, Clean Up, Inspect.
-struct OmniToolbar: ToolbarContent {
+/// Main toolbar: Back/Forward and View · New Action, Quick Entry, Focus · Search, Clean Up, Inspect.
+struct MainToolbar: ToolbarContent {
     @Bindable var model: AppModel
 
     var body: some ToolbarContent {
@@ -366,7 +366,7 @@ struct SidebarResizeHandle: View {
     }
 }
 
-/// Native "Icon and Text" toolbar, like OmniFocus. Set once when the window appears; with no
+/// Native "Icon and Text" toolbar. Set once when the window appears; with no
 /// container swaps underneath, SwiftUI's toolbar updates are stable.
 struct ToolbarLabelsOn: NSViewRepresentable {
     func makeNSView(context: Context) -> NSView {
@@ -380,8 +380,8 @@ struct ToolbarLabelsOn: NSViewRepresentable {
     func updateNSView(_ nsView: NSView, context: Context) {}
 }
 
-/// Same items as OmniToolbar, as a customizable toolbar (right-click → Customize Toolbar…).
-struct OmniToolbarCustomizable: CustomizableToolbarContent {
+/// Same items as MainToolbar, as a customizable toolbar (right-click → Customize Toolbar…).
+struct MainToolbarCustomizable: CustomizableToolbarContent {
     @Bindable var model: AppModel
 
     var body: some CustomizableToolbarContent {

@@ -1,7 +1,7 @@
 import SwiftUI
 import TaskerCore
 
-/// Quick Entry, OmniFocus style: one item laid out like a list row
+/// Quick Entry: one item laid out like a list row
 /// (circle · "Untitled Item" · Project / Tags / Due / Repeat · Add Note), with Cancel / Save below.
 struct QuickEntryForm: View {
     @Environment(AppModel.self) private var model

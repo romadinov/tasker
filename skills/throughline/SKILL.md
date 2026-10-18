@@ -1,23 +1,23 @@
 ---
-name: tasker
-description: Work with the user's Tasker task manager (an OmniFocus-style app on Mac/iPhone/iPad) through its MCP server — capture actions, process the Inbox, plan the day from Forecast/Flagged, run the weekly project Review, and find or update tasks. Use when the user says things like "add a task", "remind me to…", "what's on my plate today", "process my inbox", "do my weekly review", "what's in project X", "flag/defer/complete …", or mentions Tasker, perspectives, projects, tags or the Inbox.
+name: throughline
+description: Work with the user's Throughline task manager (a GTD-style task app on Mac/iPhone/iPad) through its MCP server — capture actions, process the Inbox, plan the day from Forecast/Flagged, run the weekly project Review, and find or update tasks. Use when the user says things like "add a task", "remind me to…", "what's on my plate today", "process my inbox", "do my weekly review", "what's in project X", "flag/defer/complete …", or mentions Throughline, perspectives, projects, tags or the Inbox.
 ---
 
-# Tasker
+# Throughline
 
-Tasker is the user's task manager. Its MCP server (`tasker`, tools listed below) reads and writes the same
+Throughline is the user's task manager. Its MCP server (`throughline`, tools listed below) reads and writes the same
 database as the app; changes appear in the app immediately and sync to the user's other devices via iCloud.
 
 ## Before anything: check the tools are connected
 
-If no `tasker` MCP tools are available, don't improvise. Tell the user to connect it (Tasker → Settings → MCP has
+If no `throughline` MCP tools are available, don't improvise. Tell the user to connect it (Throughline → Settings → MCP has
 the exact command), typically:
 
 ```
-claude mcp add --scope user tasker -- "/Applications/Tasker.app/Contents/MacOS/tasker-mcp"
+claude mcp add --scope user throughline -- "/Applications/Throughline.app/Contents/MacOS/throughline-mcp"
 ```
 
-## Concepts (OmniFocus model)
+## Concepts
 
 - **Inbox** — unfiled actions. **Projects** live in folders and are written `Folder : Project`
   (e.g. `Common : Домашние дела`). Project types: parallel, sequential (only the first action is available),

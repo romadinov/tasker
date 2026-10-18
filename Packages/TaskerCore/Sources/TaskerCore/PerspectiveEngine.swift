@@ -6,7 +6,7 @@ public struct ResultSection: Identifiable, Sendable {
     public var taskIDs: [String]
 }
 
-/// Evaluates perspective rules written in OmniFocus's `archivedFilterRules` dialect.
+/// Evaluates perspective rules (the JSON rule format also used by imported OmniFocus perspectives).
 public struct PerspectiveEngine {
     public let s: Snapshot
     public init(_ snapshot: Snapshot) { s = snapshot }

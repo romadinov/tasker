@@ -2,8 +2,8 @@ import AppKit
 import SwiftUI
 import UniformTypeIdentifiers
 
-/// Mac Share menu → "Tasker": sends the shared link/text to the Tasker app via tasker://add.
-/// (Extensions are sandboxed and can't open Tasker's database; the app saves the item.)
+/// Mac Share menu → "Throughline": sends the shared link/text to the Throughline app via tasker://add.
+/// (Extensions are sandboxed and can't open Throughline's database; the app saves the item.)
 final class ShareViewController: NSViewController {
     override func loadView() {
         view = NSView(frame: NSRect(x: 0, y: 0, width: 420, height: 230))
@@ -50,7 +50,7 @@ final class ShareViewController: NSViewController {
 
     func send(title: String, url: String?, note: String, flagged: Bool) {
         var c = URLComponents()
-        c.scheme = "tasker"; c.host = "add"
+        c.scheme = "throughline"; c.host = "add"
         var q = [URLQueryItem(name: "title", value: title), URLQueryItem(name: "quick", value: "1")]
         if let url { q.append(URLQueryItem(name: "url", value: url)) }
         if !note.isEmpty { q.append(URLQueryItem(name: "note", value: note)) }
@@ -61,7 +61,7 @@ final class ShareViewController: NSViewController {
             .joined(separator: "&")
         if let u = c.url {
             let config = NSWorkspace.OpenConfiguration()
-            config.activates = false // stay where you are; Tasker shows a small confirmation
+            config.activates = false // stay where you are; Throughline shows a small confirmation
             NSWorkspace.shared.open(u, configuration: config) { _, _ in }
         }
         extensionContext?.completeRequest(returningItems: nil)
@@ -78,7 +78,7 @@ struct MacShareForm: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Label("Add to Tasker Inbox", systemImage: "tray.and.arrow.down.fill").font(.headline)
+            Label("Add to Throughline Inbox", systemImage: "tray.and.arrow.down.fill").font(.headline)
             TextField("Title", text: $title, prompt: Text("Untitled Item"))
                 .textFieldStyle(.roundedBorder)
             if let url {

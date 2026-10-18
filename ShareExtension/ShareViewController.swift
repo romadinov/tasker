@@ -4,7 +4,7 @@ import UIKit
 import UniformTypeIdentifiers
 
 /// Share sheet capture. Writes straight into the shared database (with its own replica id)
-/// and uploads immediately, so the capture reaches the Mac even if Tasker isn't opened.
+/// and uploads immediately, so the capture reaches the Mac even if Throughline isn't opened.
 final class ShareViewController: UIViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -67,7 +67,7 @@ final class ShareViewController: UIViewController {
                 group.cancelAll()
             }
         } catch {
-            NSLog("Tasker share: \(error)")
+            NSLog("Throughline share: \(error)")
         }
         extensionContext?.completeRequest(returningItems: nil)
     }
@@ -95,7 +95,7 @@ struct ShareForm: View {
                 TextField("Note", text: $note, axis: .vertical).lineLimit(3...10)
                 Toggle("Flagged", isOn: $flagged)
             }
-            .navigationTitle("Add to Tasker")
+            .navigationTitle("Add to Throughline")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel", action: onCancel) }
