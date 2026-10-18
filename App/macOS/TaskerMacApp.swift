@@ -7,7 +7,7 @@ struct TaskerMacApp: App {
     @NSApplicationDelegateAdaptor(MacAppDelegate.self) private var delegate
 
     var body: some Scene {
-        WindowGroup("Throughline", id: "main") {
+        WindowGroup("Uberdoer", id: "main") {
             RootView()
                 .environment(AppModel.shared)
                 .frame(minWidth: 1080, minHeight: 600)
@@ -37,7 +37,7 @@ final class MacAppDelegate: NSObject, NSApplicationDelegate {
         }
         NSApp.servicesProvider = services
         NotificationCenter.default.addObserver(forName: .taskerQuickAdded, object: nil, queue: .main) { n in
-            MainActor.assumeIsolated { Toast.show("Added to Throughline", detail: n.object as? String ?? "") }
+            MainActor.assumeIsolated { Toast.show("Added to Uberdoer", detail: n.object as? String ?? "") }
         }
         NotificationCenter.default.addObserver(forName: .taskerShowQuickEntry, object: nil, queue: .main) { n in
             MainActor.assumeIsolated {
@@ -48,14 +48,14 @@ final class MacAppDelegate: NSObject, NSApplicationDelegate {
         NSApp.registerForRemoteNotifications()
     }
 
-    /// tasker://add?… from other apps (Scriptorium's "Send to Throughline", Shortcuts, scripts).
+    /// tasker://add?… from other apps (Scriptorium's "Send to Uberdoer", Shortcuts, scripts).
     func application(_ application: NSApplication, open urls: [URL]) {
         MainActor.assumeIsolated {
             for url in urls {
                 if let r = AddRequest(url: url) { AppModel.shared.handleAdd(r); continue }
                 // tasker://clip[?quick=1|dry=1] — run the clipper on the frontmost app (Shortcuts, Keyboard Maestro…).
                 // dry=1 only reports what would be captured (no task is created).
-                if ["throughline", "tasker"].contains(url.scheme ?? ""), url.host == "clip" {
+                if ["uberdoer", "throughline", "tasker"].contains(url.scheme ?? ""), url.host == "clip" {
                     let q = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems ?? []
                     let flag = { (k: String) in q.contains { $0.name == k && ["1", "true"].contains($0.value ?? "") } }
                     if flag("dry") {

@@ -60,7 +60,7 @@ final class HotKeyCenter {
             refs[id] = ref
             handlers[id] = handler
         } else {
-            NSLog("Throughline: could not register hotkey \(shortcut.display) (\(status)); another app may own it")
+            NSLog("Uberdoer: could not register hotkey \(shortcut.display) (\(status)); another app may own it")
         }
     }
 

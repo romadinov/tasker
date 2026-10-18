@@ -179,7 +179,7 @@ struct SidebarView: View {
                 .foregroundStyle(.secondary)
             }
         }
-        .navigationTitle("Throughline")
+        .navigationTitle("Uberdoer")
         .safeAreaInset(edge: .bottom) { SyncBadge().padding(8) }
         #if os(iOS)
         .toolbar {

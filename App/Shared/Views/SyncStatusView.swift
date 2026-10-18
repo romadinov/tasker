@@ -84,7 +84,7 @@ struct SyncStatusView: View {
         .navigationTitle("Sync")
         .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
         .fileExporter(isPresented: Binding(get: { exporting != nil }, set: { if !$0 { exporting = nil } }), document: exporting,
-                      contentType: .taskerLog, defaultFilename: "Throughline \(Date().formatted(.iso8601.year().month().day())).taskerlog") { _ in }
+                      contentType: .taskerLog, defaultFilename: "Uberdoer \(Date().formatted(.iso8601.year().month().day())).taskerlog") { _ in }
         .fileImporter(isPresented: $importing, allowedContentTypes: [.taskerLog, .data]) { result in
             guard case .success(let url) = result else { return }
             let access = url.startAccessingSecurityScopedResource()

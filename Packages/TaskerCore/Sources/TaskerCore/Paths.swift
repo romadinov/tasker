@@ -17,7 +17,7 @@ public enum TaskerConfig {
     public static let externalChangeNotification = "com.romadinov.tasker.external-change"
 
     /// iOS: the app group container, shared with the share extension.
-    /// macOS: ~/Library/Application Support/Throughline.
+    /// macOS: ~/Library/Application Support/Uberdoer.
     public static func databaseURL() -> URL {
         if let override = ProcessInfo.processInfo.environment["TASKER_DB"] { return URL(fileURLWithPath: override) }
         #if os(iOS)

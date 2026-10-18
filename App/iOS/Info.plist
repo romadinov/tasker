@@ -8,19 +8,19 @@
 			<key>CFBundleURLName</key>
 			<string>com.romadinov.tasker.add</string>
 			<key>CFBundleURLSchemes</key>
-			<array><string>throughline</string><string>tasker</string></array>
+			<array><string>uberdoer</string><string>throughline</string><string>tasker</string></array>
 		</dict>
 	</array>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>Throughline shows actions for the shops and places you are at, in Nearby.</string>
+	<string>Uberdoer shows actions for the shops and places you are at, in Nearby.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-	<string>Throughline can remind you of actions when you arrive at or leave a place, such as a shopping centre.</string>
+	<string>Uberdoer can remind you of actions when you arrive at or leave a place, such as a shopping centre.</string>
 	<key>NSCalendarsFullAccessUsageDescription</key>
-	<string>Throughline shows your calendar events next to due and planned actions in Forecast.</string>
+	<string>Uberdoer shows your calendar events next to due and planned actions in Forecast.</string>
 	<key>NSCalendarsUsageDescription</key>
-	<string>Throughline shows your calendar events next to due and planned actions in Forecast.</string>
+	<string>Uberdoer shows your calendar events next to due and planned actions in Forecast.</string>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>remote-notification</string>
@@ -41,7 +41,7 @@
 			<key>UTTypeIdentifier</key>
 			<string>com.romadinov.tasker.log</string>
 			<key>UTTypeDescription</key>
-			<string>Throughline Database</string>
+			<string>Uberdoer Database</string>
 			<key>UTTypeConformsTo</key>
 			<array><string>public.data</string></array>
 			<key>UTTypeTagSpecification</key>

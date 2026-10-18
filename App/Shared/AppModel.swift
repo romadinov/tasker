@@ -549,7 +549,7 @@ final class AppModel {
             let id = quickAdd(title: title, note: r.fullNote, projectID: projectID, tagIDs: tagIDs, flagged: r.flagged,
                               deferDate: date(r.deferDate, 0), dueDate: date(r.due, 17))
             if let id, let planned = date(r.planned, 9) { perform("Planned") { $0.setTask(id, F.plannedDate, .date(planned)) } }
-            banner = "Added to Throughline: \(title)"
+            banner = "Added to Uberdoer: \(title)"
             DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) { [weak self] in self?.banner = nil }
             #if os(macOS)
             NotificationCenter.default.post(name: .taskerQuickAdded, object: title)

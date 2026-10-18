@@ -8,31 +8,31 @@
 			<key>CFBundleURLName</key>
 			<string>com.romadinov.tasker.add</string>
 			<key>CFBundleURLSchemes</key>
-			<array><string>throughline</string><string>tasker</string></array>
+			<array><string>uberdoer</string><string>throughline</string><string>tasker</string></array>
 		</dict>
 	</array>
 	<key>NSLocationUsageDescription</key>
-	<string>Throughline shows actions for the shops and places you are at, in Nearby.</string>
+	<string>Uberdoer shows actions for the shops and places you are at, in Nearby.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>Throughline shows actions for the shops and places you are at, in Nearby.</string>
+	<string>Uberdoer shows actions for the shops and places you are at, in Nearby.</string>
 	<key>NSCalendarsFullAccessUsageDescription</key>
-	<string>Throughline shows your calendar events next to due and planned actions in Forecast.</string>
+	<string>Uberdoer shows your calendar events next to due and planned actions in Forecast.</string>
 	<key>NSCalendarsUsageDescription</key>
-	<string>Throughline shows your calendar events next to due and planned actions in Forecast.</string>
+	<string>Uberdoer shows your calendar events next to due and planned actions in Forecast.</string>
 	<key>NSAppleEventsUsageDescription</key>
-	<string>Throughline reads the current page or email from your browser or Mail when you clip it, and reads OmniFocus when you import.</string>
+	<string>Uberdoer reads the current page or email from your browser or Mail when you clip it, and reads OmniFocus when you import.</string>
 	<key>NSServices</key>
 	<array>
 		<dict>
 			<key>NSMenuItem</key>
 			<dict>
 				<key>default</key>
-				<string>Send to Throughline</string>
+				<string>Send to Uberdoer</string>
 			</dict>
 			<key>NSMessage</key>
 			<string>sendToInbox</string>
 			<key>NSPortName</key>
-			<string>Throughline</string>
+			<string>Uberdoer</string>
 			<key>NSRequiredContext</key>
 			<dict/>
 			<key>NSSendTypes</key>
@@ -49,7 +49,7 @@
 			<key>UTTypeIdentifier</key>
 			<string>com.romadinov.tasker.log</string>
 			<key>UTTypeDescription</key>
-			<string>Throughline Database</string>
+			<string>Uberdoer Database</string>
 			<key>UTTypeConformsTo</key>
 			<array><string>public.data</string></array>
 			<key>UTTypeTagSpecification</key>

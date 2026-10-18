@@ -3,7 +3,7 @@ import SwiftUI
 import TaskerCore
 
 /// Floating, non-activating panel (like Spotlight): it takes keyboard focus without pulling
-/// Throughline's main window forward, and focus goes back to the previous app on close.
+/// Uberdoer's main window forward, and focus goes back to the previous app on close.
 final class QuickEntryWindow: NSPanel {
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { false }

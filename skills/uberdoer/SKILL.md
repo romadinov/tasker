@@ -1,20 +1,20 @@
 ---
-name: throughline
-description: Work with the user's Throughline task manager (a GTD-style task app on Mac/iPhone/iPad) through its MCP server — capture actions, process the Inbox, plan the day from Forecast/Flagged, run the weekly project Review, and find or update tasks. Use when the user says things like "add a task", "remind me to…", "what's on my plate today", "process my inbox", "do my weekly review", "what's in project X", "flag/defer/complete …", or mentions Throughline, perspectives, projects, tags or the Inbox.
+name: uberdoer
+description: Work with the user's Uberdoer task manager (a GTD-style task app on Mac/iPhone/iPad) through its MCP server — capture actions, process the Inbox, plan the day from Forecast/Flagged, run the weekly project Review, and find or update tasks. Use when the user says things like "add a task", "remind me to…", "what's on my plate today", "process my inbox", "do my weekly review", "what's in project X", "flag/defer/complete …", or mentions Uberdoer, perspectives, projects, tags or the Inbox.
 ---
 
-# Throughline
+# Uberdoer
 
-Throughline is the user's task manager. Its MCP server (`throughline`, tools listed below) reads and writes the same
+Uberdoer is the user's task manager. Its MCP server (`uberdoer`, tools listed below) reads and writes the same
 database as the app; changes appear in the app immediately and sync to the user's other devices via iCloud.
 
 ## Before anything: check the tools are connected
 
-If no `throughline` MCP tools are available, don't improvise. Tell the user to connect it (Throughline → Settings → MCP has
+If no `uberdoer` MCP tools are available, don't improvise. Tell the user to connect it (Uberdoer → Settings → MCP has
 the exact command), typically:
 
 ```
-claude mcp add --scope user throughline -- "/Applications/Throughline.app/Contents/MacOS/throughline-mcp"
+claude mcp add --scope user uberdoer -- "/Applications/Uberdoer.app/Contents/MacOS/uberdoer-mcp"
 ```
 
 ## Concepts

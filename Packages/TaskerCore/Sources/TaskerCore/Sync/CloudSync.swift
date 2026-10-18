@@ -44,14 +44,14 @@ public struct SyncStatus: Sendable, Equatable {
 /// - If the cloud copy disappears (zone deleted, account reset), any device re-uploads the
 ///   complete history it holds, rebuilding the cloud.
 public final class CloudSync: CKSyncEngineDelegate, @unchecked Sendable {
-    public static let zoneName = "Throughline"
+    public static let zoneName = "Uberdoer"
 
     let container: CKContainer
     let store: Store
     let zoneID = CKRecordZone.ID(zoneName: CloudSync.zoneName, ownerName: CKCurrentUserDefaultName)
     let deviceName: String
     let platform: String
-    let log = Logger(subsystem: "Throughline", category: "sync")
+    let log = Logger(subsystem: "Uberdoer", category: "sync")
 
     private let lock = NSRecursiveLock()
     private var engine: CKSyncEngine?
