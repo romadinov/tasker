@@ -288,8 +288,13 @@ struct ComboTextField: NSViewRepresentable {
         var keyMonitor: Any?
         init(_ p: ComboTextField) { parent = p }
 
-        func showPanel() {
-            guard let field, let window = field.window else { return }
+        func showPanel(attempt: Int = 0) {
+            guard panel == nil, !done else { return }
+            // The field may not be in a window yet right after a click re-renders the row: retry briefly.
+            guard let field, let window = field.window else {
+                if attempt < 20 { DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in self?.showPanel(attempt: attempt + 1) } }
+                return
+            }
             let p = DropdownPanel(contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
             p.hasShadow = true
             p.isOpaque = false
@@ -349,7 +354,7 @@ struct ComboTextField: NSViewRepresentable {
         func controlTextDidChange(_ n: Notification) {
             guard let f = n.object as? NSTextField else { return }
             parent.state.query = f.stringValue
-            position()
+            if panel == nil { showPanel() } else { position() }
         }
 
         func control(_ control: NSControl, textView: NSTextView, doCommandBy sel: Selector) -> Bool {

@@ -584,6 +584,14 @@ final class AppModel {
         }
     }
 
+    /// Clicking a row's project or tags (selected or not): select it and open that inline field.
+    func openInline(_ id: String, _ field: InlineField.Field) {
+        if selection != [id] { selection = [id] }
+        projectEditingSeed = ""
+        // After the row has re-rendered as the selected (editable) row.
+        DispatchQueue.main.async { self.inlineField = .init(id: id, field: field) }
+    }
+
     /// Moves to the next action in the current list and opens its Project field, so a run of
     /// items (e.g. the Inbox) can be processed with the keyboard: Project ↩ Tags ↩ → next item.
     func editNextTask(after id: String) {

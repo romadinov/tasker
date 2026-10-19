@@ -144,7 +144,13 @@ struct MetadataLine: View {
         if !task.isProject {
             // Editable in place: click the project or a tag to change it.
             if showContext && showProject {
-                out.append(AnyView(ProjectChip(task: task)))
+                out.append(AnyView(Button { model.openInline(task.id, .project) } label: {
+                    if let p = info.projectID, let project = s.tasks[p] {
+                        Badge(text: project.title, systemImage: "circle.grid.2x2", color: Palette.project)
+                    } else {
+                        Badge(text: "Inbox", systemImage: "tray")
+                    }
+                }.buttonStyle(.plain).help("Change project")))
             } else if selected && info.projectID == nil {
                 out.append(AnyView(ProjectChip(task: task, placeholder: true)))
             }
@@ -165,7 +171,9 @@ struct MetadataLine: View {
             out.append(AnyView(Badge(text: Fmt.relative(c, now: s.now), systemImage: "checkmark")))
         }
         if !task.isProject && (!task.tagIDs.isEmpty || selected) {
-            out.append(AnyView(TagChips(task: task, showAdd: selected)))
+            out.append(AnyView(Button { model.openInline(task.id, .tags) } label: {
+                TagBadges(task: task, placeholder: selected)
+            }.buttonStyle(.plain).help("Edit tags")))
         } else if task.isProject {
             for name in s.tagNames(task.tagIDs) { out.append(AnyView(Badge(text: name, color: Palette.tag))) }
         }
@@ -233,9 +241,10 @@ struct SelectedFieldsLine: View {
                 InlineTagsField(task: task)
             } else {
                 Button { model.inlineField = .init(id: task.id, field: .tags) } label: {
-                    TagChips(task: task, showAdd: true).allowsHitTesting(false)
+                    TagBadges(task: task, placeholder: true)
                 }
                 .buttonStyle(.plain)
+                .help("Tags — click and type to add")
             }
             if focus == .flag { InlineFlagChip(task: task, focused: true) }
             DateChip(task: task, field: F.deferDate, label: "Defer", icon: "arrow.turn.up.right", date: task.deferDate, defaultHour: 0)
@@ -307,3 +316,23 @@ struct KeyCatcher: NSViewRepresentable {
     func updateNSView(_ v: CatcherView, context: Context) { v.onKey = onKey }
 }
 #endif
+
+/// Tags shown as plain badges (the whole group is one button), or a faint "Tags" placeholder.
+struct TagBadges: View {
+    @Environment(AppModel.self) private var model
+    let task: TaskItem
+    var placeholder = false
+
+    var body: some View {
+        let s = model.snapshot
+        let names = task.tagIDs.compactMap { s.tags[$0]?.name }
+        HStack(spacing: 4) {
+            if names.isEmpty {
+                if placeholder { Badge(text: "Tags", systemImage: "tag", color: .secondary.opacity(0.7)) }
+            } else {
+                ForEach(names, id: \.self) { Badge(text: $0, color: Palette.tag) }
+            }
+        }
+        .contentShape(Rectangle())
+    }
+}

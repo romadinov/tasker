@@ -118,6 +118,46 @@ enum DebugSnapshots {
                 }
             } else { NSLog("TASKER-INSP toolbar item not found") }
         }))
+        steps.append(("click-tags", {
+            model.inlineField = nil
+            model.sidebar = .inbox
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                guard let id = model.sections().flatMap(\.rows).dropFirst(2).first?.id else { return }
+                model.selection = [id]
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    // Find the "Tags" button through Accessibility and click it like a user.
+                    let app = AXUIElementCreateApplication(getpid())
+                    func find(_ el: AXUIElement, _ depth: Int) -> AXUIElement? {
+                        var help: CFTypeRef?
+                        AXUIElementCopyAttributeValue(el, kAXHelpAttribute as CFString, &help)
+                        if (help as? String)?.hasPrefix("Tags —") == true { return el }
+                        guard depth < 40 else { return nil }
+                        var kids: CFTypeRef?
+                        AXUIElementCopyAttributeValue(el, kAXChildrenAttribute as CFString, &kids)
+                        for k in (kids as? [AXUIElement]) ?? [] { if let f = find(k, depth + 1) { return f } }
+                        return nil
+                    }
+                    guard let el = find(app, 0) else { NSLog("TASKER-CLICKTAGS button not found (AX trusted=%d)", AXIsProcessTrusted() ? 1 : 0); return }
+                    var posV: CFTypeRef?, sizeV: CFTypeRef?
+                    AXUIElementCopyAttributeValue(el, kAXPositionAttribute as CFString, &posV)
+                    AXUIElementCopyAttributeValue(el, kAXSizeAttribute as CFString, &sizeV)
+                    var pos = CGPoint.zero, size = CGSize.zero
+                    AXValueGetValue(posV as! AXValue, .cgPoint, &pos); AXValueGetValue(sizeV as! AXValue, .cgSize, &size)
+                    guard let win = NSApp.windows.first(where: { $0.frame.width > 600 }), let screen = win.screen ?? NSScreen.main else { return }
+                    // AX uses top-left screen coordinates; AppKit windows use bottom-left.
+                    let screenPoint = CGPoint(x: pos.x + size.width / 2, y: screen.frame.maxY - (pos.y + size.height / 2))
+                    let p = win.convertPoint(fromScreen: screenPoint)
+                    for type in [NSEvent.EventType.leftMouseDown, .leftMouseUp] {
+                        if let e = NSEvent.mouseEvent(with: type, location: p, modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime,
+                                                      windowNumber: win.windowNumber, context: nil, eventNumber: 0, clickCount: 1, pressure: 1) { win.sendEvent(e) }
+                    }
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                        NSLog("TASKER-CLICKTAGS after click: inlineField=%@ panelVisible=%d", String(describing: model.inlineField?.field),
+                              NSApp.windows.contains { $0 is DropdownPanel && $0.isVisible } ? 1 : 0)
+                    }
+                }
+            }
+        }))
         steps.append(("reorder", {
             model.sidebar = .inbox
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
