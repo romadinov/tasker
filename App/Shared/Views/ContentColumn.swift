@@ -82,10 +82,13 @@ struct ContentColumn: View {
             .contextMenu(forSelectionType: String.self) { ids in
                 ItemContextMenu(ids: Array(ids))
             }
-            .onChange(of: model.inlineField?.id) { _, id in
-                // Keep the item being edited inline (e.g. the next Inbox item) in view.
+            .onChange(of: model.scrollToRow) { _, id in
+                // Only when moving to the next item (Return after tags): scroll just enough to show it.
                 guard let id else { return }
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { proxy.scrollTo(id, anchor: .center) }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                    proxy.scrollTo(id)
+                    model.scrollToRow = nil
+                }
             }
             .onChange(of: model.editingID) { _, id in
                 guard let id else { return }

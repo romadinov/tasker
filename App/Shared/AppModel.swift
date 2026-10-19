@@ -91,6 +91,8 @@ final class AppModel {
         var field: Field
     }
     var inlineField: InlineField?
+    /// Set to bring a row into view (minimal scroll); used when moving to the next task.
+    var scrollToRow: String?
     var projectEditingSeed = ""
     var recentlyCompleted: Set<String> = []
     /// Items filed out of the Inbox this session; they stay visible there until Clean Up.
@@ -600,6 +602,7 @@ final class AppModel {
         guard i + 1 < rows.count else { inlineField = nil; return } // last item: just finish
         let next = rows[i + 1].id
         selection = [next]
+        scrollToRow = next
         projectEditingSeed = ""
         inlineField = .init(id: next, field: .project)
     }

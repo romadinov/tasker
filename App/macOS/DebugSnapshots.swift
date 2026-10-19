@@ -143,6 +143,22 @@ enum DebugSnapshots {
                     AXUIElementCopyAttributeValue(el, kAXSizeAttribute as CFString, &sizeV)
                     var pos = CGPoint.zero, size = CGSize.zero
                     AXValueGetValue(posV as! AXValue, .cgPoint, &pos); AXValueGetValue(sizeV as! AXValue, .cgSize, &size)
+                    // The Tags element's y after the click (to detect the row jumping); re-found via AX.
+                    func rowY() -> CGFloat {
+                        guard let e = find(app, 0) ?? findAddTag(app, 0) else { return -1 }
+                        var v: CFTypeRef?; AXUIElementCopyAttributeValue(e, kAXPositionAttribute as CFString, &v)
+                        var p = CGPoint.zero; if let v { AXValueGetValue(v as! AXValue, .cgPoint, &p) }; return p.y
+                    }
+                    func findAddTag(_ el: AXUIElement, _ depth: Int) -> AXUIElement? {
+                        var ph: CFTypeRef?
+                        AXUIElementCopyAttributeValue(el, kAXPlaceholderValueAttribute as CFString, &ph)
+                        if (ph as? String) == "Add tag" { return el }
+                        guard depth < 40 else { return nil }
+                        var kids: CFTypeRef?
+                        AXUIElementCopyAttributeValue(el, kAXChildrenAttribute as CFString, &kids)
+                        for k in (kids as? [AXUIElement]) ?? [] { if let f = findAddTag(k, depth + 1) { return f } }
+                        return nil
+                    }
                     guard let win = NSApp.windows.first(where: { $0.frame.width > 600 }), let screen = win.screen ?? NSScreen.main else { return }
                     // AX uses top-left screen coordinates; AppKit windows use bottom-left.
                     let screenPoint = CGPoint(x: pos.x + size.width / 2, y: screen.frame.maxY - (pos.y + size.height / 2))
@@ -152,8 +168,16 @@ enum DebugSnapshots {
                                                       windowNumber: win.windowNumber, context: nil, eventNumber: 0, clickCount: 1, pressure: 1) { win.sendEvent(e) }
                     }
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
-                        NSLog("TASKER-CLICKTAGS after click: inlineField=%@ panelVisible=%d", String(describing: model.inlineField?.field),
-                              NSApp.windows.contains { $0 is DropdownPanel && $0.isVisible } ? 1 : 0)
+                        let panel = NSApp.windows.first { $0 is DropdownPanel && $0.isVisible }
+                        // Gap between the field's bottom and the list's top (screen points), and whether the row moved.
+                        var gap = -1.0
+                        if let panel, let f = NSApp.windows.first(where: { $0.frame.width > 600 })?.firstResponder as? NSTextView,
+                           let fw = f.window {
+                            let fr = fw.convertToScreen(f.convert(f.bounds, to: nil))
+                            gap = fr.minY - panel.frame.maxY
+                        }
+                        NSLog("TASKER-CLICKTAGS after click: inlineField=%@ panelVisible=%d gap=%.0f rowYBefore=%.0f rowYAfter=%.0f",
+                              String(describing: model.inlineField?.field), panel != nil ? 1 : 0, gap, pos.y, rowY())
                     }
                 }
             }

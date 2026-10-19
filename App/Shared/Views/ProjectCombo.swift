@@ -286,6 +286,7 @@ struct ComboTextField: NSViewRepresentable {
         var panel: NSPanel?
         var done = false
         var keyMonitor: Any?
+        var follow: Timer?
         init(_ p: ComboTextField) { parent = p }
 
         func showPanel(attempt: Int = 0) {
@@ -309,6 +310,10 @@ struct ComboTextField: NSViewRepresentable {
             window.addChildWindow(p, ordered: .above)
             panel = p
             position()
+            // Keep the list attached under the field while the list scrolls or the row re-lays out.
+            follow = Timer.scheduledTimer(withTimeInterval: 1.0 / 30, repeats: true) { [weak self] _ in
+                MainActor.assumeIsolated { self?.position() }
+            }
             // ⌘↩ creates a new project/tag from the typed text (instead of picking the highlighted match).
             // A local monitor sees it before window key equivalents such as Quick Entry's ⌘↩ = Save.
             keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] e in
@@ -328,12 +333,14 @@ struct ComboTextField: NSViewRepresentable {
             let r = window.convertToScreen(field.convert(field.bounds, to: nil))
             let rows = min(max(parent.state.items.count, 1), 8)
             let h = CGFloat(rows) * 21 + 6
-            panel.setFrame(NSRect(x: r.minX, y: r.minY - h - 2, width: 460, height: h), display: true)
+            let frame = NSRect(x: r.minX, y: r.minY - h - 2, width: 460, height: h)
+            if panel.frame != frame { panel.setFrame(frame, display: true) }
         }
 
         func hidePanel() {
             if let panel { panel.parent?.removeChildWindow(panel); panel.orderOut(nil) }
             panel = nil
+            follow?.invalidate(); follow = nil
             if let keyMonitor { NSEvent.removeMonitor(keyMonitor) }
             keyMonitor = nil
         }
