@@ -3,13 +3,16 @@ import SwiftUI
 import TaskerCore
 
 struct MacSettingsView: View {
+    /// Shared with the "Import from OmniFocus…" menu item so it can open Settings on the Import tab.
+    @AppStorage("settings.tab") private var tab = "shortcuts"
+
     var body: some View {
-        TabView {
-            ShortcutSettings().tabItem { Label("Shortcuts", systemImage: "keyboard") }
-            SettingsView().tabItem { Label("General", systemImage: "gearshape") }
-            NavigationStack { SyncStatusView() }.tabItem { Label("Sync", systemImage: "icloud") }
-            OmniFocusImportView().tabItem { Label("Import", systemImage: "square.and.arrow.down") }
-            MCPSettingsView().tabItem { Label("MCP", systemImage: "point.3.connected.trianglepath.dotted") }
+        TabView(selection: $tab) {
+            ShortcutSettings().tabItem { Label("Shortcuts", systemImage: "keyboard") }.tag("shortcuts")
+            SettingsView().tabItem { Label("General", systemImage: "gearshape") }.tag("general")
+            NavigationStack { SyncStatusView() }.tabItem { Label("Sync", systemImage: "icloud") }.tag("sync")
+            OmniFocusImportView().tabItem { Label("Import", systemImage: "square.and.arrow.down") }.tag("import")
+            MCPSettingsView().tabItem { Label("MCP", systemImage: "point.3.connected.trianglepath.dotted") }.tag("mcp")
         }
         .frame(width: 620, height: 560)
     }

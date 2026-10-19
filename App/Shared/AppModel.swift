@@ -401,25 +401,78 @@ final class AppModel {
         }
     }
 
-    func indent(_ ids: [String]) { perform("Indent") { tx in for id in ids { tx.indent(id) } } ; for id in ids { if let p = snapshot.info[id]?.parentID { expanded.insert(p) } } }
-    func outdent(_ ids: [String]) { perform("Outdent") { tx in for id in ids { tx.outdent(id) } } }
+    // MARK: Organize (OmniFocus's Organize menu)
 
-    func moveUpDown(_ id: String, up: Bool) {
-        let parentKey: String
-        if let t = snapshot.tasks[id] {
-            parentKey = t.isProject ? (snapshot.projectInfo[id]?.folderID ?? Snapshot.libraryKey) : (snapshot.info[id]?.parentID ?? Snapshot.inboxKey)
-        } else if let f = snapshot.folders[id] {
-            parentKey = f.position.parent.flatMap { snapshot.folders[$0] != nil ? $0 : nil } ?? Snapshot.libraryKey
-        } else { return }
-        let siblings = snapshot.children[parentKey] ?? []
-        guard let i = siblings.firstIndex(of: id) else { return }
-        let j = up ? i - 1 : i + 1
-        guard siblings.indices.contains(j) else { return }
-        let parent: String? = parentKey.hasPrefix("#") ? nil : parentKey
-        perform("Move") { tx in
-            if tx.base.folders[id] != nil { tx.moveFolder(id, to: parent, placement: up ? .before(siblings[j]) : .after(siblings[j])) }
-            else { tx.move(id, to: parent, placement: up ? .before(siblings[j]) : .after(siblings[j])) }
+    /// What Organize commands act on: the list selection, else the folders/projects/tags picked in the sidebar.
+    var organizeIDs: [String] {
+        if !selection.isEmpty { return Array(selection) }
+        switch sidebar {
+        case .projects: return Array(projectFocus)
+        case .tags: return Array(tagFocus)
+        default: return []
         }
+    }
+
+    var canOrganize: Bool { !organizeIDs.isEmpty && editingID == nil }
+
+
+    func indent(_ ids: [String]) {
+        var parents: [String] = []
+        perform("Indent") { tx in parents = tx.indent(ids) }
+        expanded.formUnion(parents)
+    }
+
+    func outdent(_ ids: [String]) { perform("Outdent") { tx in tx.outdent(ids) } }
+
+    func moveUpDown(_ ids: [String], up: Bool) { perform("Move") { tx in tx.moveVertically(ids, up: up) } }
+    func moveUpDown(_ id: String, up: Bool) { moveUpDown([id], up: up) }
+
+    /// Add Inside (⇧⌘]): a new child at the top of the selected action/project.
+    func addInside() {
+        guard let s = selection.first, snapshot.tasks[s] != nil else { return }
+        var id: String?
+        perform("Add Inside") { tx in id = tx.addInside(s) }
+        guard let id else { return }
+        expanded.insert(s)
+        selection = [id]; editingID = id
+    }
+
+    /// Add Outside (⇧⌘[): a new sibling right after the selected item's parent group.
+    func addOutside() {
+        guard let s = selection.first else { return }
+        var id: String?
+        perform("Add Outside") { tx in id = tx.addOutside(s) }
+        guard let id else { return }
+        selection = [id]; editingID = id
+    }
+
+    /// Group (⌥⌘G): actions go into a new action group, projects/folders into a new folder.
+    func group(_ ids: [String]) {
+        var g: String?
+        perform("Group") { tx in g = tx.group(ids) }
+        guard let g else { return }
+        expanded.insert(g)
+        selection = [g]
+        if snapshot.tasks[g] != nil { editingID = g }
+    }
+
+    func ungroup(_ ids: [String]) {
+        let kids = ids.flatMap { snapshot.children[$0] ?? [] }
+        perform("Ungroup") { tx in tx.ungroup(ids) }
+        selection = Set(kids)
+    }
+
+    /// Sort Once: the selected container's children, the selected siblings, or (nothing selected)
+    /// the top level of the current view.
+    func sortOnce(_ ids: [String], by sort: OutlineSort) {
+        let root: String? = switch sidebar {
+        case .inbox: Snapshot.inboxKey
+        case .projects: Snapshot.libraryKey
+        case .tags: Snapshot.tagsKey
+        default: nil
+        }
+        perform("Sort") { tx in tx.sortOnce(ids, by: sort, rootKey: root) }
+        if ids.count == 1 { expanded.insert(ids[0]) }
     }
 
     func moveItems(_ ids: [String], to target: String?) {

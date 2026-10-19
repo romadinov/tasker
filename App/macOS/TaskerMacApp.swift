@@ -103,6 +103,19 @@ enum HotKeys {
     }
 }
 
+/// Opens Settings on the Import tab. The old `showSettingsWindow:` action is ignored by SwiftUI's Settings
+/// scene on current macOS, so this goes through `openSettings`.
+private struct OpenImportSettingsButton: View {
+    @Environment(\.openSettings) private var openSettings
+    var body: some View {
+        Button("Import from OmniFocus…") {
+            UserDefaults.standard.set("import", forKey: "settings.tab")
+            NSApp.activate()
+            openSettings()
+        }
+    }
+}
+
 struct TaskerCommands: Commands {
     var model: AppModel { AppModel.shared }
 
@@ -114,21 +127,16 @@ struct TaskerCommands: Commands {
             Divider()
             Button("Quick Entry…") { QuickEntryController.shared.show() }.keyboardShortcut("e", modifiers: [.command, .control])
             Divider()
-            Button("Import from OmniFocus…") { NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil) }
+            OpenImportSettingsButton()
         }
         CommandMenu("Item") {
             let sel = Array(model.selection)
-            Button("Clean Up") { model.cleanUp() }.keyboardShortcut("k")
             // Space (and F to flag) are handled by the focused list, not as menu key equivalents,
             // which would also fire while typing in text fields.
             Button("Complete  (Space)") { for id in sel { model.toggleComplete(id) } }.disabled(sel.isEmpty)
             Button("Flag  (F)") { model.toggleFlag(sel) }.keyboardShortcut("l", modifiers: [.command, .shift]).disabled(sel.isEmpty)
             Button("Edit Title") { model.editingID = sel.first }.keyboardShortcut(.return, modifiers: []).disabled(sel.count != 1 || model.editingID != nil)
             Divider()
-            Button("Indent") { model.indent(sel) }.keyboardShortcut("]").disabled(sel.isEmpty)
-            Button("Outdent") { model.outdent(sel) }.keyboardShortcut("[").disabled(sel.isEmpty)
-            Button("Move Up") { if let id = sel.first { model.moveUpDown(id, up: true) } }.keyboardShortcut(.upArrow, modifiers: [.command, .control]).disabled(sel.count != 1)
-            Button("Move Down") { if let id = sel.first { model.moveUpDown(id, up: false) } }.keyboardShortcut(.downArrow, modifiers: [.command, .control]).disabled(sel.count != 1)
             Button("Move To…") { model.moveTargetFor = sel }.keyboardShortcut("m", modifiers: [.command, .shift]).disabled(sel.isEmpty)
             Divider()
             Button("Defer to Tomorrow") { model.setDate(sel, F.deferDate, QuickEntryParser(snapshot: model.snapshot).date("tomorrow", hour: 0)) }
@@ -140,6 +148,9 @@ struct TaskerCommands: Commands {
                 model.perform("Mark Reviewed") { tx in for id in sel where tx.base.tasks[id]?.isProject == true { tx.markReviewed(id) } }
                 model.recentlyCompleted.formUnion(sel)
             }
+        }
+        CommandMenu("Organize") {
+            OrganizeMenuItems(includeCleanUp: true).environment(AppModel.shared)
         }
         CommandGroup(after: .sidebar) {
             Button("Inbox") { model.sidebar = .inbox }.keyboardShortcut("1")

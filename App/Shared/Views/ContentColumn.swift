@@ -320,9 +320,8 @@ struct ItemContextMenu: View {
             }
             Divider()
             Button("Move To…") { model.moveTargetFor = ids }
+            Menu("Organize") { OrganizeMenuItems(ids: ids) }
             if tasks.allSatisfy({ !$0.isProject }) {
-                Button("Indent") { model.indent(ids) }
-                Button("Outdent") { model.outdent(ids) }
                 if ids.count == 1 {
                     Button("Convert to Project") { model.perform("Convert to Project") { $0.convertToProject(ids[0], folder: nil) } }
                 }
@@ -337,6 +336,7 @@ struct ItemContextMenu: View {
         }
         if ids.contains(where: { s.folders[$0] != nil }) {
             Button("Move To…") { model.moveTargetFor = ids }
+            if tasks.isEmpty { Menu("Organize") { OrganizeMenuItems(ids: ids) } }
         }
         Divider()
         Button("Delete", role: .destructive) { model.deleteItems(ids) }

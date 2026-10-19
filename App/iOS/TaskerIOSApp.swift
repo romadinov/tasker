@@ -27,6 +27,10 @@ struct TaskerIOSApp: App {
                 }
                 .animation(.snappy, value: AppModel.shared.banner)
         }
+        // iPad with a keyboard: the same Organize menu and shortcuts as on the Mac (hold ⌘ to see them).
+        .commands {
+            CommandMenu("Organize") { OrganizeMenuItems(includeCleanUp: true).environment(AppModel.shared) }
+        }
         .backgroundTask(.appRefresh(IOSAppDelegate.refreshID)) {
             await IOSAppDelegate.scheduleRefresh()
             await AppModel.shared.sync?.syncNow()

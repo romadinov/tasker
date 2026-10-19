@@ -186,6 +186,8 @@ struct ProjectTree: View {
                     Button("New Project") { model.selection = []; model.projectFocus = n.isFolder ? [n.id] : model.projectFocus; model.newProject(inFolder: n.isFolder ? n.id : s.projectInfo[n.id]?.folderID) }
                     Button("New Folder") { model.newFolder() }
                     Divider()
+                    Menu("Organize") { OrganizeMenuItems(ids: model.projectFocus.contains(n.id) ? Array(model.projectFocus) : [n.id]) }
+                    Divider()
                     Button("Delete", role: .destructive) { model.deleteItems([n.id]) }
                 }
             }
@@ -232,6 +234,9 @@ struct TagTree: View {
                 }
                 .padding(.leading, CGFloat(e.depth) * 14)
                 .tag(e.tag.id)
+                .contextMenu {
+                    Menu("Organize") { OrganizeMenuItems(ids: model.tagFocus.contains(e.tag.id) ? Array(model.tagFocus) : [e.tag.id]) }
+                }
             }
             .onMove { from, to in model.moveTags(from, to: to, in: ordered) }
         }

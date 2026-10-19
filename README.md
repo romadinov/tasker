@@ -89,8 +89,11 @@ Mac app → Settings → Import → *Read from OmniFocus*. This runs an Omni Aut
 | F / ⇧⌘L | Flag |
 | ⌘K | Clean Up |
 | ⌃⌥⇧Space | Quick Clip (saves straight to the Inbox) |
-| ⌘] / ⌘[ | Indent / outdent |
-| ⌃⌘↑ / ⌃⌘↓ | Move up / down |
+| ⌘] / ⌘[ | Indent / outdent (actions, projects into folders, folders, tags) |
+| ⇧⌘] / ⇧⌘[ | Add Inside (new subtask) / Add Outside |
+| ⌃⌘↑ ↓ ← → | Move up / down / left / right (works on a multi-selection) |
+| ⌥⌘G / ⌥⌘U | Group into an action group or folder / Ungroup |
+| Organize → Sort Once | Sort a project's, folder's or tag's children (or the selected rows) by title, status or a date |
 | ⇧⌘M | Move to… |
 | ⌘1–⌘7 | Inbox, Projects, Tags, Forecast, Flagged, Nearby, Review (⌘8–9: first perspectives) |
 | ⌥⌘[ / ⌥⌘] | Back / Forward |
