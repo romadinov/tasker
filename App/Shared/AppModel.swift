@@ -504,6 +504,18 @@ final class AppModel {
         projectFocus = [list[j].id]
     }
 
+    /// Moves to the next action in the current list and opens its Project field, so a run of
+    /// items (e.g. the Inbox) can be processed with the keyboard: Project ↩ Tags ↩ → next item.
+    func editNextTask(after id: String) {
+        let rows = sections().flatMap(\.rows).filter { $0.kind == .task }
+        guard let i = rows.firstIndex(where: { $0.id == id }) else { inlineField = nil; return }
+        guard i + 1 < rows.count else { inlineField = nil; return } // last item: just finish
+        let next = rows[i + 1].id
+        selection = [next]
+        projectEditingSeed = ""
+        inlineField = .init(id: next, field: .project)
+    }
+
     func toggleFolder(_ id: String) {
         if collapsedFolders.contains(id) { collapsedFolders.remove(id) } else { collapsedFolders.insert(id) }
     }

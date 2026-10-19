@@ -153,9 +153,11 @@ struct InlineTagsField: View {
     var body: some View {
         #if os(macOS)
         ComboTextField(state: state, placeholder: "Add tag", onCommit: { item, viaTab in
-            if let item, !(state.query.isEmpty && !viaTab && false) { add(item) }
-            if viaTab || item == nil { model.inlineField = .init(id: task.id, field: .flag); return false }
-            return true // stay for another tag
+            if let item { add(item) }
+            // Tab → Flag. Return on an empty field = done with this item → next task (Inbox processing).
+            if viaTab { model.inlineField = .init(id: task.id, field: .flag); return false }
+            if item == nil { model.editNextTask(after: task.id); return false }
+            return true // Return with a tag picked: stay for another tag
         }, onCancel: { model.inlineField = nil })
         .frame(minWidth: 140, maxWidth: 220)
         #else

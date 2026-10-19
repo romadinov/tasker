@@ -82,6 +82,11 @@ struct ContentColumn: View {
             .contextMenu(forSelectionType: String.self) { ids in
                 ItemContextMenu(ids: Array(ids))
             }
+            .onChange(of: model.inlineField?.id) { _, id in
+                // Keep the item being edited inline (e.g. the next Inbox item) in view.
+                guard let id else { return }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { proxy.scrollTo(id, anchor: .center) }
+            }
             .onChange(of: model.editingID) { _, id in
                 guard let id else { return }
                 // The row only exists after the list has diffed in the new snapshot.

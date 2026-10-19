@@ -73,6 +73,12 @@ enum DebugSnapshots {
             }
         }))
         steps.append(("tags-combo", { if let id = model.selection.first { model.inlineField = .init(id: id, field: .tags) } }))
+        steps.append(("tags-return-next", {
+            if let id = model.selection.first {
+                model.editNextTask(after: id)
+                NSLog("TASKER-NEXT from=%@ to=%@ field=%@", id, model.selection.first ?? "-", String(describing: model.inlineField?.field))
+            }
+        }))
         steps.append(("flag-focus", { if let id = model.selection.first { model.inlineField = .init(id: id, field: .flag) } }))
         steps.append(("inspector-menu-off", {
             model.inlineField = nil
