@@ -118,7 +118,8 @@ struct AutocompleteField: View {
 
 /// Matching helpers shared by Quick Entry and the inspector.
 enum Lookup {
-    static func projects(_ s: Snapshot, _ q: String) -> [Suggestion] {
+    static func projects(_ s: Snapshot, _ query: String) -> [Suggestion] {
+        let q = Fuzzy.layoutColon(query, folderNames: s.folders.values.map(\.name))
         let remaining = s.orderedProjects.filter { s.info[$0.id]?.isRemaining == true }
         let ranked: [TaskItem]
         if q.contains(":") {

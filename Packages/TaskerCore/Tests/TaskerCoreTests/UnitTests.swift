@@ -283,3 +283,33 @@ import Testing
         #expect(found.first?.url.scheme == "scriptorium")
     }
 }
+
+@Suite struct FuzzyPerformanceTests {
+    static let projects: [String] = (0..<200).map { i in
+        ["VIM", "K8s", "iAc", "Emacs", "CRDT", "Rust", "eBPF", "TLA+", "Новые тулы в тулбокс", "Домашняя рутина", "Гитара"][i % 11] + " \(i)  " + ["Самообразование", "Работа", "Common", "High"][i % 4]
+    }
+
+    @Test func longQueriesStayFast() {
+        let clock = ContinuousClock()
+        var result: [String] = []
+        let t = clock.measure {
+            for q in ["СамообразованиеЖ", "Самообразование", "Самообразование:", "абвгдеёжзийклмнопрст"] {
+                result = Fuzzy.rank(Self.projects, q) { $0 }
+            }
+        }
+        print("4 long queries over 200 projects: \(t)")
+        _ = result
+        #expect(t < .milliseconds(150))
+    }
+}
+
+@Suite struct LayoutColonTests {
+    let folders = ["Самообразование", "Работа", "Common"]
+    @Test func russianColonKey() {
+        #expect(Fuzzy.layoutColon("СамообразованиеЖ", folderNames: folders) == "Самообразование:")
+        #expect(Fuzzy.layoutColon("СамообразованиеЖ Новые", folderNames: folders) == "Самообразование: Новые")
+        #expect(Fuzzy.layoutColon("Самообрж", folderNames: folders) == "Самообр:")
+        #expect(Fuzzy.layoutColon("Жизнь", folderNames: folders) == "Жизнь")       // leading Ж is a letter
+        #expect(Fuzzy.layoutColon("Ножницы", folderNames: folders) == "Ножницы")   // not after a folder name
+    }
+}

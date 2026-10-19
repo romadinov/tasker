@@ -1,4 +1,5 @@
 import Foundation
+import Synchronization
 
 /// Fuzzy matching for projects and tags (fzf-style, typo- and layout-tolerant).
 ///
@@ -25,34 +26,57 @@ public enum Fuzzy {
     /// Sorts items by fuzzy score (stable for equal scores), dropping non-matches.
     public static func rank<T>(_ items: [T], _ query: String, text: (T) -> String) -> [T] {
         guard !query.trimmingCharacters(in: .whitespaces).isEmpty else { return items }
-        return items.enumerated()
+        let scored = items.enumerated()
             .compactMap { i, t in score(query, text(t)).map { (s: $0, i: i, t: t) } }
             .sorted { $0.s != $1.s ? $0.s > $1.s : $0.i < $1.i }
-            .map(\.t)
+        // Typo-tolerant matches score below zero; show them only when real matches are scarce.
+        let real = scored.filter { $0.s >= 0 }
+        return (real.count >= 3 ? real : scored).map(\.t)
     }
 
     static func normalize(_ s: String) -> [Character] {
-        Array(s.folding(options: [.caseInsensitive, .diacriticInsensitive, .widthInsensitive], locale: nil)
+        if let hit = cache.withLock({ $0[s] }) { return hit }
+        let v = Array(s.folding(options: [.caseInsensitive, .diacriticInsensitive, .widthInsensitive], locale: nil)
             .replacingOccurrences(of: "ё", with: "е"))
+        cache.withLock { c in
+            if c.count > 5000 { c.removeAll(keepingCapacity: true) }
+            c[s] = v
+        }
+        return v
     }
 
+    /// Normalised candidate strings are reused across keystrokes (project/tag names rarely change).
+    private static let cache = Mutex<[String: [Character]]>([:])
+
     private static func match(_ q: [Character], _ c: [Character]) -> Int? {
-        if let s = subsequence(q, c) { return s + exactBonus(q, c) }
-        // Typo tolerance: drop up to k letters from the query and try again.
         let k = q.count >= 6 ? 2 : (q.count >= 3 ? 1 : 0)
+        // Cheap rejection: too many query letters don't occur in the candidate at all.
+        let present = Set(c)
+        if q.reduce(0, { $0 + (present.contains($1) ? 0 : 1) }) > k { return nil }
+        if let s = subsequence(q, c) { return s + exactBonus(q, c) }
+        // Typo tolerance in one O(m·n) pass: the longest in-order run of query letters found in the
+        // candidate. Up to 1 letter may be missing for 3+ letters, 2 for 6+. Scored far below real
+        // matches, so they only fill the list when nothing matches properly.
         guard k > 0 else { return nil }
-        var best: Int?
-        for i in q.indices {
-            var q1 = q; q1.remove(at: i)
-            if let s = subsequence(q1, c) { best = max(best ?? .min, s - 25) }
-            if k >= 2 && best == nil {
-                for j in q1.indices {
-                    var q2 = q1; q2.remove(at: j)
-                    if let s = subsequence(q2, c) { best = max(best ?? .min, s - 50) }
-                }
+        let found = lcs(q, c)
+        let missing = q.count - found
+        guard missing <= k else { return nil }
+        return found * 4 - missing * 40 - 60
+    }
+
+    /// Length of the longest common subsequence (rolling single row).
+    private static func lcs(_ a: [Character], _ b: [Character]) -> Int {
+        guard !a.isEmpty, !b.isEmpty else { return 0 }
+        var row = [Int](repeating: 0, count: b.count + 1)
+        for x in a {
+            var prevDiag = 0
+            for j in 1...b.count {
+                let saved = row[j]
+                row[j] = x == b[j - 1] ? prevDiag + 1 : max(row[j], row[j - 1])
+                prevDiag = saved
             }
         }
-        return best
+        return row[b.count]
     }
 
     private static func exactBonus(_ q: [Character], _ c: [Character]) -> Int {
@@ -91,6 +115,24 @@ public enum Fuzzy {
         }
         let best = prev.max() ?? neg
         return best > neg ? best - n / 8 : nil
+    }
+
+    /// On the Russian layout the ":" key types "Ж". If a "ж"/"Ж" directly follows a known folder
+    /// name ("СамообразованиеЖ"), read it as the "Folder : Project" separator.
+    public static func layoutColon(_ query: String, folderNames: [String]) -> String {
+        guard !query.contains(":"), query.contains(where: { $0 == "ж" || $0 == "Ж" }) else { return query }
+        let folders = folderNames.map { String(normalize($0)) }
+        let chars = Array(query)
+        for (i, ch) in chars.enumerated() where (ch == "ж" || ch == "Ж") && i > 0 {
+            let before = String(normalize(String(chars[..<i]))).trimmingCharacters(in: .whitespaces)
+            // the last path segment before the Ж must be (the start of) a folder name
+            let lastSegment = before.split(separator: ":").last.map(String.init)?.trimmingCharacters(in: .whitespaces) ?? before
+            if !lastSegment.isEmpty, folders.contains(where: { $0.hasPrefix(lastSegment) }) {
+                var out = chars; out[i] = ":"
+                return layoutColon(String(out), folderNames: folderNames) // handles nested folders too
+            }
+        }
+        return query
     }
 
     /// The query plus its wrong-layout conversions ("ubnfhf" → "гитара", "руддщ" → "hello").

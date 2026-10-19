@@ -38,6 +38,11 @@ public struct QuickEntryParser {
                 if let id = matchTag(name) { if !r.tagIDs.contains(id) { r.tagIDs.append(id) } } else { r.unknownTags.append(name) }
                 continue
             }
+            // "ЖЖ" is "::" typed on the Russian layout.
+            if token.count > 2, (token.hasPrefix("ЖЖ") || token.hasPrefix("жж")) {
+                let rest = Fuzzy.layoutColon(String(token.dropFirst(2)), folderNames: snapshot.folders.values.map(\.name))
+                if let id = matchProject(rest) { r.projectID = id; continue }
+            }
             if token.hasPrefix("::"), token.count > 2 {
                 if let id = matchProject(String(token.dropFirst(2))) { r.projectID = id; continue }
             }
