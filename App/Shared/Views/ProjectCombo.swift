@@ -65,6 +65,7 @@ final class ComboState {
 /// "Folder : Project" with typed letters highlighted → Return picks.
 struct InlineProjectField: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.backgroundProminence) private var prominence
     let task: TaskItem
 
     var body: some View {
@@ -82,8 +83,11 @@ struct InlineProjectField: View {
                     if name != nil { Image(systemName: "chevron.down").font(.system(size: 7, weight: .bold)) }
                 }
                 .font(.caption)
-                .foregroundStyle(name == nil ? Color.secondary.opacity(0.7) : Palette.project)
-                .padding(.horizontal, 4).padding(.vertical, 1)
+                .foregroundStyle(prominence == .increased
+                                 ? AnyShapeStyle(.primary.opacity(name == nil ? 0.75 : 1))
+                                 : AnyShapeStyle(name == nil ? Color.secondary.opacity(0.7) : Palette.project))
+                .padding(.horizontal, 6).padding(.vertical, 1)
+                .background(Capsule().fill(prominence == .increased ? Color.primary.opacity(0.16) : .clear))
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
@@ -257,11 +261,21 @@ struct ComboTextField: NSViewRepresentable {
 
     func makeNSView(context: Context) -> AutoFocusTextField {
         let f = AutoFocusTextField()
-        f.isBordered = true
-        f.bezelStyle = .roundedBezel
+        // A self-drawn white field: the rounded bezel ignores backgroundColor and turns see-through on a
+        // highlighted (blue) row, which made the text unreadable.
+        f.isBezeled = false
+        f.isBordered = false
+        f.drawsBackground = true
+        f.backgroundColor = .textBackgroundColor
+        f.textColor = .textColor
+        f.wantsLayer = true
+        f.layer?.cornerRadius = 5
+        f.layer?.borderWidth = 1
+        f.layer?.borderColor = NSColor.separatorColor.cgColor
         f.focusRingType = .none
         f.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
-        f.placeholderString = placeholder
+        f.placeholderAttributedString = NSAttributedString(string: placeholder, attributes: [
+            .foregroundColor: NSColor.placeholderTextColor, .font: NSFont.systemFont(ofSize: NSFont.smallSystemFontSize)])
         f.delegate = context.coordinator
         f.stringValue = state.query
         context.coordinator.field = f

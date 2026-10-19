@@ -36,16 +36,21 @@ struct Badge: View {
     var systemImage: String?
     var color: Color = .secondary
     var filled = false
+    /// On a selected (highlighted) row fixed colours become unreadable on the accent background,
+    /// so badges switch to the highlight's own text colour.
+    @Environment(\.backgroundProminence) private var prominence
 
     var body: some View {
+        let onHighlight = prominence == .increased
         HStack(spacing: 3) {
             if let systemImage { Image(systemName: systemImage).imageScale(.small) }
-            Text(text).lineLimit(1)
+            if !text.isEmpty { Text(text).lineLimit(1) }
         }
         .font(.caption)
         .padding(.horizontal, 6).padding(.vertical, 1)
-        .foregroundStyle(filled ? Color.white : color)
-        .background(Capsule().fill(filled ? color : color.opacity(0.12)))
+        .foregroundStyle(onHighlight ? AnyShapeStyle(.primary) : AnyShapeStyle(filled ? Color.white : color))
+        .background(Capsule().fill(onHighlight ? AnyShapeStyle(Color.primary.opacity(filled ? 0.28 : 0.16))
+                                               : AnyShapeStyle(filled ? color : color.opacity(0.12))))
     }
 }
 
