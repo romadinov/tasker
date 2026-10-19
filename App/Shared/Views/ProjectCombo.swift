@@ -285,6 +285,7 @@ struct ComboTextField: NSViewRepresentable {
         weak var field: NSTextField?
         var panel: NSPanel?
         var done = false
+        var keyMonitor: Any?
         init(_ p: ComboTextField) { parent = p }
 
         func showPanel() {
@@ -303,6 +304,18 @@ struct ComboTextField: NSViewRepresentable {
             window.addChildWindow(p, ordered: .above)
             panel = p
             position()
+            // ⌘↩ creates a new project/tag from the typed text (instead of picking the highlighted match).
+            // A local monitor sees it before window key equivalents such as Quick Entry's ⌘↩ = Save.
+            keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] e in
+                guard let self, let f = self.field, let editor = f.currentEditor(), f.window?.firstResponder === editor,
+                      [36, 76].contains(e.keyCode),
+                      e.modifierFlags.intersection(.deviceIndependentFlagsMask) == .command else { return e }
+                let q = self.parent.state.query.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !q.isEmpty else { return e }
+                let existing = self.parent.state.items.first { $0.createName == nil && $0.title.compare(q, options: .caseInsensitive) == .orderedSame }
+                self.finish(existing ?? ComboItem(id: "#new", folder: "", title: q, onHold: false, createName: q))
+                return nil
+            }
         }
 
         func position() {
@@ -316,6 +329,8 @@ struct ComboTextField: NSViewRepresentable {
         func hidePanel() {
             if let panel { panel.parent?.removeChildWindow(panel); panel.orderOut(nil) }
             panel = nil
+            if let keyMonitor { NSEvent.removeMonitor(keyMonitor) }
+            keyMonitor = nil
         }
 
         func finish(_ item: ComboItem?, viaTab: Bool = false) {

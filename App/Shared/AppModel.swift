@@ -504,6 +504,86 @@ final class AppModel {
         projectFocus = [list[j].id]
     }
 
+    // MARK: Drag to reorder
+
+    /// Views whose order is the outline order (others are sorted or grouped and can't be reordered).
+    var canReorder: Bool {
+        guard searchText.isEmpty, focusIDs.isEmpty else { return false }
+        switch sidebar ?? .inbox {
+        case .inbox, .projects: return true
+        default: return false
+        }
+    }
+
+    /// SwiftUI `onMove` for a section's flattened rows: works out the new parent and position from
+    /// the row just above the drop point, keeping tasks among tasks, projects among projects/folders.
+    func moveRows(_ from: IndexSet, to dest: Int, in rows: [OutlineRow]) {
+        let moving = from.map { rows[$0].id }
+        var aboveIndex = dest - 1
+        while aboveIndex >= 0, moving.contains(rows[aboveIndex].id) { aboveIndex -= 1 }
+        let above = aboveIndex >= 0 ? rows[aboveIndex] : nil
+        let s = snapshot
+        perform("Move") { tx in
+            // Insert in reverse so a multi-row drag keeps its order after the same anchor.
+            for id in moving.reversed() {
+                if s.folders[id] != nil {
+                    guard let (parent, place) = libraryTarget(for: id, above: above, s) else { continue }
+                    tx.moveFolder(id, to: parent, placement: place)
+                } else if let t = s.tasks[id], t.isProject {
+                    guard let (parent, place) = libraryTarget(for: id, above: above, s) else { continue }
+                    tx.move(id, to: parent, placement: place)
+                } else {
+                    guard let (parent, place) = taskTarget(above: above, s) else { continue }
+                    tx.move(id, to: parent, placement: place)
+                }
+            }
+        }
+    }
+
+    /// Where a project or folder dropped below `above` goes (folders/library level only).
+    private func libraryTarget(for id: String, above: OutlineRow?, _ s: Snapshot) -> (String?, Placement)? {
+        guard let above else { return (nil, .start) }
+        if let f = s.folders[above.id] {
+            if above.expanded && above.id != id { return (f.id, .start) }      // into the open folder
+            return (f.position.parent.flatMap { s.folders[$0] != nil ? $0 : nil }, .after(f.id))
+        }
+        // Above is a project, or a task inside one: go right after that project.
+        let projectID = s.tasks[above.id]?.isProject == true ? above.id : s.info[above.id]?.projectID
+        guard let pid = projectID else { return nil }   // Inbox tasks: no library position here
+        return (s.projectInfo[pid]?.folderID, .after(pid))
+    }
+
+    /// Where an action dropped below `above` goes.
+    private func taskTarget(above: OutlineRow?, _ s: Snapshot) -> (String?, Placement)? {
+        guard let above else { return (nil, .start) }                       // top of the Inbox
+        if s.folders[above.id] != nil { return nil }                         // actions don't live in folders
+        if let t = s.tasks[above.id], t.isProject { return (t.id, .start) }  // first action of that project
+        if above.expanded && above.hasChildren { return (above.id, .start) } // into the open group
+        return (s.info[above.id]?.parentID, .after(above.id))               // next to it
+    }
+
+    /// Reorders tags in the Tags sidebar (stays at the same level as the tag it's dropped below).
+    func moveTags(_ from: IndexSet, to dest: Int, in ordered: [(tag: Tag, depth: Int)]) {
+        let moving = from.map { ordered[$0].tag.id }
+        var i = dest - 1
+        while i >= 0, moving.contains(ordered[i].tag.id) { i -= 1 }
+        perform("Move Tag") { tx in
+            for id in moving.reversed() {
+                if i < 0 {
+                    let first = tx.base.tagChildren[Snapshot.tagsKey]?.first.flatMap { tx.base.tags[$0]?.position.order }
+                    tx.set(.tag, id, F.pos, .object(["p": .null, "o": .string(FractionalIndex.between(nil, first))]))
+                    continue
+                }
+                let anchor = ordered[i].tag
+                let siblings = (tx.base.tagChildren[anchor.position.parent ?? Snapshot.tagsKey] ?? []).filter { $0 != id }
+                let idx = siblings.firstIndex(of: anchor.id) ?? siblings.count - 1
+                let next = idx + 1 < siblings.count ? tx.base.tags[siblings[idx + 1]]?.position.order : nil
+                let order = FractionalIndex.between(anchor.position.order, next)
+                tx.set(.tag, id, F.pos, .object(["p": anchor.position.parent.map(JSON.string) ?? .null, "o": .string(order)]))
+            }
+        }
+    }
+
     /// Moves to the next action in the current list and opens its Project field, so a run of
     /// items (e.g. the Inbox) can be processed with the keyboard: Project ↩ Tags ↩ → next item.
     func editNextTask(after id: String) {

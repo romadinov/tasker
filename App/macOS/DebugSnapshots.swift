@@ -118,6 +118,38 @@ enum DebugSnapshots {
                 }
             } else { NSLog("TASKER-INSP toolbar item not found") }
         }))
+        steps.append(("reorder", {
+            model.sidebar = .inbox
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                // 1. Inbox: 4th row to the top.
+                var rows = model.sections().flatMap(\.rows)
+                let fourth = rows[3].id
+                model.moveRows(IndexSet(integer: 3), to: 0, in: rows)
+                rows = model.sections().flatMap(\.rows)
+                NSLog("TASKER-REORDER inbox: moved to index %d", rows.firstIndex { $0.id == fourth } ?? -1)
+                // 2. A task dropped right below an open project becomes its first action.
+                let s = model.snapshot
+                if let p = s.orderedProjects.first(where: { (s.projectInfo[$0.id]?.remainingCount ?? 0) > 1 }) {
+                    let projectRow = OutlineRow(id: p.id, kind: .project, depth: 0, hasChildren: true, expanded: true, showContext: false)
+                    let taskRow = OutlineRow(id: fourth, kind: .task, depth: 0, hasChildren: false, expanded: false, showContext: false)
+                    model.moveRows(IndexSet(integer: 1), to: 1, in: [projectRow, taskRow])
+                    let after = model.snapshot
+                    NSLog("TASKER-REORDER into project: parent=%@ firstChild=%@", after.info[fourth]?.parentID == p.id ? "ok" : "WRONG", after.childIDs(p.id).first == fourth ? "ok" : "WRONG")
+                }
+                // 3. A project dropped after another folder in the library outline.
+                let s2 = model.snapshot
+                let folders = s2.libraryIDs.filter { s2.folders[$0] != nil }
+                if folders.count >= 2, let proj = s2.childIDs(folders[0]).first(where: { s2.tasks[$0]?.isProject == true }) {
+                    let a = OutlineRow(id: proj, kind: .project, depth: 1, hasChildren: false, expanded: false, showContext: false)
+                    let b = OutlineRow(id: folders[1], kind: .folder, depth: 0, hasChildren: true, expanded: false, showContext: false)
+                    model.moveRows(IndexSet(integer: 0), to: 2, in: [a, b])
+                    let after = model.snapshot
+                    let idx = after.libraryIDs.firstIndex(of: proj)
+                    let fidx = after.libraryIDs.firstIndex(of: folders[1])
+                    NSLog("TASKER-REORDER project after folder: %@", (idx != nil && fidx != nil && idx! == fidx! + 1) ? "ok" : "WRONG")
+                }
+            }
+        }))
         steps.append(("file-in-place", {
             model.sidebar = .inbox
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {

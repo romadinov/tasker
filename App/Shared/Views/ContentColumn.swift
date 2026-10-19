@@ -161,6 +161,8 @@ struct ContentColumn: View {
             case .project, .task: TaskRow(row: row).tag(row.id).id(row.id)
             }
         }
+        // Drag to reorder where the list shows the outline order (Inbox, Projects).
+        .onMove(perform: model.canReorder ? { from, to in model.moveRows(from, to: to, in: rows) } : nil)
     }
 
     @ViewBuilder

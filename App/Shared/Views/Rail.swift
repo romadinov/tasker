@@ -156,8 +156,9 @@ struct ProjectTree: View {
     var body: some View {
         @Bindable var model = model
         let s = model.snapshot
+        let currentNodes = nodes
         List(selection: $model.projectFocus) {
-            ForEach(nodes) { n in
+            ForEach(currentNodes) { n in
                 HStack(spacing: 6) {
                     if n.isFolder {
                         Button { model.toggleFolder(n.id) } label: {
@@ -188,6 +189,11 @@ struct ProjectTree: View {
                     Button("Delete", role: .destructive) { model.deleteItems([n.id]) }
                 }
             }
+            .onMove { from, to in
+                let rows = currentNodes.map { OutlineRow(id: $0.id, kind: $0.isFolder ? .folder : .project, depth: $0.depth,
+                                                          hasChildren: $0.hasChildren, expanded: $0.open, showContext: false) }
+                model.moveRows(from, to: to, in: rows)
+            }
         }
         .listStyle(.sidebar)
         .safeAreaInset(edge: .bottom) {
@@ -214,8 +220,9 @@ struct TagTree: View {
     var body: some View {
         @Bindable var model = model
         let s = model.snapshot
+        let ordered = s.orderedTags
         List(selection: $model.tagFocus) {
-            ForEach(s.orderedTags, id: \.tag.id) { e in
+            ForEach(ordered, id: \.tag.id) { e in
                 HStack {
                     Image(systemName: e.tag.status == .onHold ? "pause.circle" : "tag").foregroundStyle(Palette.tag)
                     Text(e.tag.name).foregroundStyle(e.tag.status == .active ? .primary : .secondary)
@@ -226,6 +233,7 @@ struct TagTree: View {
                 .padding(.leading, CGFloat(e.depth) * 14)
                 .tag(e.tag.id)
             }
+            .onMove { from, to in model.moveTags(from, to: to, in: ordered) }
         }
         .listStyle(.sidebar)
         .onChange(of: model.tagFocus) { _, _ in model.selection = [] }
