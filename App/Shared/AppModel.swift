@@ -82,6 +82,8 @@ final class AppModel {
     var selection: Set<String> = [] { didSet { pendingSelection.formUnion(selection.subtracting(oldValue)) } }
     @ObservationIgnored private var pendingSelection: Set<String> = []
     var editingID: String?
+    /// Folder, project or tag being renamed in place (sidebar, folder rows); see `RenamableName`.
+    var renamingID: String?
     /// Row whose note is being edited inline.
     var noteEditingID: String?
     /// Which inline field of the selected row has focus (chain: project → tags → flag).
@@ -275,6 +277,16 @@ final class AppModel {
     }
 
     // MARK: Mutations
+
+    /// Renames a folder, tag, project or action (plain text, no quick-entry shorthand).
+    func rename(_ id: String, to name: String) {
+        renamingID = nil
+        let v = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !v.isEmpty else { return }
+        if let t = snapshot.tasks[id], t.title != v { perform(t.isProject ? "Rename Project" : "Rename") { $0.setTask(id, F.title, .string(v)) } }
+        else if let f = snapshot.folders[id], f.name != v { perform("Rename Folder") { $0.set(.folder, id, F.name, .string(v)) } }
+        else if let g = snapshot.tags[id], g.name != v { perform("Rename Tag") { $0.set(.tag, id, F.name, .string(v)) } }
+    }
 
     /// Re-reads the store after something wrote to it directly (e.g. the OmniFocus import).
     func reloadSnapshot() { snapshot = store.snapshot() }

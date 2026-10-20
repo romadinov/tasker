@@ -169,12 +169,12 @@ struct ProjectTree: View {
                         .buttonStyle(.plain)
                         .opacity(n.hasChildren ? 1 : 0)
                         Image(systemName: "folder").foregroundStyle(Palette.folder)
-                        Text(s.folders[n.id]?.name ?? "").lineLimit(1)
+                        RenamableName(id: n.id, name: s.folders[n.id]?.name ?? "", placeholder: "Untitled folder")
                     } else if let p = s.tasks[n.id] {
                         Color.clear.frame(width: 12)
                         ProjectIcon(project: p)
-                        Text(p.title.isEmpty ? "Untitled project" : p.title).lineLimit(1)
-                            .foregroundStyle(p.status == .active ? .primary : .secondary)
+                        RenamableName(id: n.id, name: p.title, placeholder: "Untitled project",
+                                      color: p.status == .active ? .primary : .secondary)
                         Spacer(minLength: 0)
                         if p.status == .onHold { Image(systemName: "pause.circle").foregroundStyle(.secondary) }
                         if s.projectInfo[n.id]?.isStalled == true { Image(systemName: "exclamationmark.circle").foregroundStyle(.orange).help("Stalled: no available actions") }
@@ -185,6 +185,7 @@ struct ProjectTree: View {
                 .contextMenu {
                     Button("New Project") { model.selection = []; model.projectFocus = n.isFolder ? [n.id] : model.projectFocus; model.newProject(inFolder: n.isFolder ? n.id : s.projectInfo[n.id]?.folderID) }
                     Button("New Folder") { model.newFolder() }
+                    Button("Rename") { model.renamingID = n.id }
                     Divider()
                     Menu("Organize") { OrganizeMenuItems(ids: model.projectFocus.contains(n.id) ? Array(model.projectFocus) : [n.id]) }
                     Divider()
@@ -198,6 +199,7 @@ struct ProjectTree: View {
             }
         }
         .listStyle(.sidebar)
+        .plainSidebarBackground()
         .safeAreaInset(edge: .bottom) {
             HStack {
                 Menu {
@@ -227,7 +229,8 @@ struct TagTree: View {
             ForEach(ordered, id: \.tag.id) { e in
                 HStack {
                     Image(systemName: e.tag.status == .onHold ? "pause.circle" : "tag").foregroundStyle(Palette.tag)
-                    Text(e.tag.name).foregroundStyle(e.tag.status == .active ? .primary : .secondary)
+                    RenamableName(id: e.tag.id, name: e.tag.name, placeholder: "Untitled tag",
+                                  color: e.tag.status == .active ? .primary : .secondary)
                     Spacer()
                     let n = (s.tasksByTag[e.tag.id] ?? []).filter { s.info[$0]?.isAvailable == true }.count
                     if n > 0 { Text("\(n)").font(.caption.monospacedDigit()).foregroundStyle(.secondary) }
@@ -235,12 +238,14 @@ struct TagTree: View {
                 .padding(.leading, CGFloat(e.depth) * 14)
                 .tag(e.tag.id)
                 .contextMenu {
+                    Button("Rename") { model.renamingID = e.tag.id }
                     Menu("Organize") { OrganizeMenuItems(ids: model.tagFocus.contains(e.tag.id) ? Array(model.tagFocus) : [e.tag.id]) }
                 }
             }
             .onMove { from, to in model.moveTags(from, to: to, in: ordered) }
         }
         .listStyle(.sidebar)
+        .plainSidebarBackground()
         .onChange(of: model.tagFocus) { _, _ in model.selection = [] }
     }
 }
@@ -346,6 +351,18 @@ struct ReviewList: View {
             }
         }
         .listStyle(.sidebar)
+        .plainSidebarBackground()
         .onChange(of: model.projectFocus) { _, _ in model.selection = [] }
+    }
+}
+
+extension View {
+    /// Mac: white like the main list instead of the grey translucent sidebar material.
+    func plainSidebarBackground() -> some View {
+        #if os(macOS)
+        scrollContentBackground(.hidden)
+        #else
+        self
+        #endif
     }
 }

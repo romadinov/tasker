@@ -267,10 +267,8 @@ struct FolderRow: View {
             HStack(spacing: 6) {
                 Disclosure(row: row)
                 Image(systemName: "folder.fill").foregroundStyle(f.dropped ? .secondary : Palette.folder)
-                Text(f.name.isEmpty ? "Untitled folder" : f.name)
-                    .font(.body.weight(.semibold))
-                    .foregroundStyle(f.dropped ? .secondary : .primary)
-                    .strikethrough(f.dropped)
+                RenamableName(id: f.id, name: f.name, placeholder: "Untitled folder", bold: true,
+                              color: f.dropped ? .secondary : .primary, strikethrough: f.dropped)
                 Spacer()
             }
             .padding(.leading, CGFloat(row.depth) * 18)
@@ -336,6 +334,7 @@ struct ItemContextMenu: View {
         }
         if ids.contains(where: { s.folders[$0] != nil }) {
             Button("Move To…") { model.moveTargetFor = ids }
+            if ids.count == 1 { Button("Rename") { model.renamingID = ids[0] } }
             if tasks.isEmpty { Menu("Organize") { OrganizeMenuItems(ids: ids) } }
         }
         Divider()

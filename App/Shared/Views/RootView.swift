@@ -74,7 +74,7 @@ extension RootView {
                     if (model.sidebar ?? .inbox).hasSidebarContent && model.showSidebar {
                         PerspectiveSidebar()
                             .frame(width: model.sidebarWidth)
-                            .background(.background.secondary)
+                            .background(.background)
                         SidebarResizeHandle()
                     }
                     NavigationStack { ContentColumn() }

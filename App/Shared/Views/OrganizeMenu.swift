@@ -10,7 +10,7 @@ struct OrganizeMenuItems: View {
 
     var body: some View {
         let ids = ids ?? model.organizeIDs
-        let off = ids.isEmpty || model.editingID != nil
+        let off = ids.isEmpty || model.editingID != nil || model.renamingID != nil
         let s = model.snapshot
         if includeCleanUp {
             Button("Clean Up") { model.cleanUp() }.keyboardShortcut("k")
