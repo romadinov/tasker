@@ -99,6 +99,16 @@ final class AppModel {
     var recentlyCompleted: Set<String> = []
     /// Items filed out of the Inbox this session; they stay visible there until Clean Up.
     var inboxKept: Set<String> = []
+    /// Rows that left the current view because of an edit made here (completed, unflagged, filed into
+    /// another project…) stay where they were until Clean Up or navigating elsewhere. See `keepInPlace`.
+    struct KeptRow { var row: OutlineRow; var section: String; var sectionTitle: String; var sectionIndex: Int; var anchor: String?; var parent: String?; var index: Int; var seq: Int }
+    @ObservationIgnored private var keptRows: [String: KeptRow] = [:]
+    /// Items whose project was changed here: shown at their old place even if they'd appear elsewhere in the view.
+    @ObservationIgnored private var pinnedRows: Set<String> = []
+    @ObservationIgnored private var shownLayout: [OutlineSection] = []
+    @ObservationIgnored private var shownViewKey = ""
+    @ObservationIgnored private var localEditPending = false
+    @ObservationIgnored private var keptSeq = 0
     /// Where each filed item sat: the inbox item just above it (nil = top), so it can stay in place.
     @ObservationIgnored var inboxAnchor: [String: String?] = [:]
     @ObservationIgnored var inboxIndex: [String: Int] = [:]
@@ -294,6 +304,7 @@ final class AppModel {
     @discardableResult
     func perform(_ name: String, _ body: (inout Tx) -> Void) -> Bool {
         guard let record = store.transact(name, body) else { return false }
+        localEditPending = true
         snapshot = store.snapshot()
         registerUndo(record)
         sync?.localChangesCommitted()
@@ -511,6 +522,7 @@ final class AppModel {
         inboxKept = []
         inboxAnchor = [:]
         inboxIndex = [:]
+        resetKeptRows()
         snapshot = store.snapshot()
     }
 
@@ -524,6 +536,7 @@ final class AppModel {
             }
             inboxKept.insert(id)
         }
+        if sidebar != .inbox { pinInPlace(ids) }
         moveItems(ids, to: projectID)
     }
 
@@ -840,12 +853,97 @@ final class AppModel {
 
     func sections() -> [OutlineSection] {
         let raw = unfocusedSections()
-        guard !focusIDs.isEmpty else { return raw }
-        return raw.map { sec in
+        let focused = focusIDs.isEmpty ? raw : raw.map { sec in
             var s = sec
             s.rows = sec.rows.filter { inFocus($0.id) }
             return s
         }.filter { !$0.rows.isEmpty || $0.title.isEmpty }
+        return keepInPlace(focused)
+    }
+
+    // MARK: Keep edited rows in place (all views, like the Inbox)
+
+    /// Identifies "the same screen": changing any of these is navigating away, which drops kept rows.
+    private var viewKey: String {
+        let d = forecastDay.timeIntervalSinceReferenceDate
+        return "\(String(describing: sidebar))|\(projectFocus.sorted())|\(tagFocus.sorted())|\(focusIDs.sorted())|\(searchText)|\(d)|\(filter)|\(tagFilter)"
+    }
+
+    private func resetKeptRows() {
+        keptRows = [:]; pinnedRows = []; shownLayout = []; localEditPending = false
+    }
+
+    /// Remembers where `ids` are shown now, so they stay there after the edit that follows.
+    private func pinInPlace(_ ids: [String]) {
+        for id in ids where keptRows[id] == nil {
+            if let k = keptRow(id) { keptRows[id] = k }
+        }
+        pinnedRows.formUnion(ids)
+    }
+
+    private func keptRow(_ id: String) -> KeptRow? {
+        for (si, sec) in shownLayout.enumerated() {
+            guard let i = sec.rows.firstIndex(where: { $0.id == id }) else { continue }
+            return makeKept(sec, si, i)
+        }
+        return nil
+    }
+
+    private func makeKept(_ sec: OutlineSection, _ si: Int, _ i: Int) -> KeptRow {
+        let row = sec.rows[i]
+        let parent = row.depth == 0 ? nil : sec.rows[..<i].last { $0.depth < row.depth }?.id
+        keptSeq += 1
+        return KeptRow(row: row, section: sec.id, sectionTitle: sec.title, sectionIndex: si,
+                       anchor: i > 0 ? sec.rows[i - 1].id : nil, parent: parent, index: i, seq: keptSeq)
+    }
+
+    /// Rows that disappeared because of an edit made in this view are put back at their old place
+    /// (after the row that was above them); Clean Up or navigating elsewhere lets them go.
+    private func keepInPlace(_ computed: [OutlineSection]) -> [OutlineSection] {
+        let key = viewKey
+        if key != shownViewKey { resetKeptRows(); shownViewKey = key }
+        // The Inbox has its own anchoring for filed items; it gets completed/unflagged handling from here too.
+        var result = computed
+        if localEditPending {
+            localEditPending = false
+            let now = Set(result.flatMap { $0.rows.map(\.id) })
+            for (si, sec) in shownLayout.enumerated() {
+                for (i, row) in sec.rows.enumerated() where !now.contains(row.id) && keptRows[row.id] == nil && snapshot.tasks[row.id] != nil {
+                    keptRows[row.id] = makeKept(sec, si, i)
+                }
+            }
+        }
+        if !keptRows.isEmpty {
+            keptRows = keptRows.filter { snapshot.tasks[$0.key] != nil } // deleted items do go away
+            if !pinnedRows.isEmpty {
+                for i in result.indices { result[i].rows.removeAll { pinnedRows.contains($0.id) && keptRows[$0.id] != nil } }
+            }
+            for k in keptRows.values.sorted(by: { $0.seq < $1.seq }) {
+                if result.contains(where: { $0.rows.contains { $0.id == k.row.id } }) { continue }
+                // Its parent row was collapsed or is gone: nothing to show it under.
+                if let p = k.parent, !result.contains(where: { $0.rows.contains { $0.id == p && $0.expanded } }) { continue }
+                var si = result.firstIndex { $0.id == k.section }
+                if si == nil {
+                    let at = min(k.sectionIndex, result.count)
+                    result.insert(OutlineSection(id: k.section, title: k.sectionTitle, rows: []), at: at)
+                    si = at
+                }
+                var rows = result[si!].rows
+                if let a = k.anchor, let ai = rows.firstIndex(where: { $0.id == a }) {
+                    var j = ai + 1
+                    // Above it was a sibling (or its subtree): go past that subtree. A parent: right below it.
+                    if k.row.depth <= rows[ai].depth { while j < rows.count, rows[j].depth > rows[ai].depth { j += 1 } }
+                    rows.insert(k.row, at: j)
+                } else if k.anchor == nil {
+                    rows.insert(k.row, at: 0)
+                } else {
+                    rows.insert(k.row, at: min(k.index, rows.count))
+                }
+                result[si!].rows = rows
+            }
+        }
+        shownLayout = result
+        return result
     }
 
     private func unfocusedSections() -> [OutlineSection] {
