@@ -19,6 +19,9 @@ settings:
 packages:
   TaskerCore:
     path: Packages/TaskerCore
+  WhisperKit:
+    url: https://github.com/argmaxinc/WhisperKit
+    from: 1.1.1
 targets:
   TaskerMac:
     type: application
@@ -29,6 +32,8 @@ targets:
       - path: App/Assets.xcassets
     dependencies:
       - package: TaskerCore
+      - package: WhisperKit
+        product: WhisperKit
       - target: TaskerMCP
         embed: true
         codeSign: true
@@ -86,6 +91,8 @@ targets:
       - path: App/Assets.xcassets
     dependencies:
       - package: TaskerCore
+      - package: WhisperKit
+        product: WhisperKit
       - target: TaskerShare
     settings:
       base:

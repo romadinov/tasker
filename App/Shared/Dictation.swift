@@ -10,12 +10,22 @@ import Carbon
 /// supports it). Listening stops by itself after a short pause, or when `stop()` is called.
 @MainActor @Observable
 final class Dictation {
-    enum State: Equatable { case idle, starting, listening, denied(String), failed(String) }
+    enum State: Equatable { case idle, starting, listening, transcribing, denied(String), failed(String) }
+    enum Engine: String { case whisper, apple }
 
     private(set) var state: State = .idle
     /// What has been recognised so far in this session.
     private(set) var transcript = ""
     var isListening: Bool { state == .listening || state == .starting }
+    var isBusy: Bool { isListening || state == .transcribing }
+
+    /// Whisper (on-device, detects Russian/English by itself) unless the user picked Apple's recogniser.
+    var engine: Engine {
+        get { Engine(rawValue: UserDefaults.standard.string(forKey: "speech.engine") ?? "") ?? .whisper }
+        set { UserDefaults.standard.set(newValue.rawValue, forKey: "speech.engine") }
+    }
+    /// The engine actually used for the current session (Apple while the Whisper model downloads).
+    private(set) var activeEngine: Engine = .apple
 
     /// Languages offered in the menu (those the recogniser supports), Russian and English first.
     static var languages: [Locale] {
@@ -57,7 +67,7 @@ final class Dictation {
         return Locale(identifier: "en-US")
     }
 
-    private let engine = AVAudioEngine()
+    private let audio = AVAudioEngine()
     private var request: SFSpeechAudioBufferRecognitionRequest?
     private var task: SFSpeechRecognitionTask?
     private var silenceTimer: Timer?
@@ -65,22 +75,32 @@ final class Dictation {
 
     /// Starts listening. `onFinish` gets the final text once listening ends (pause, `stop()`, or error).
     func start(onFinish: @escaping (String) -> Void) {
-        guard !isListening else { return }
+        guard !isBusy else { return }
         self.onFinish = onFinish
         transcript = ""
         state = .starting
+        let whisper = WhisperModel.shared
+        activeEngine = engine == .whisper && whisper.isDownloaded ? .whisper : .apple
+        // First use: fetch the model in the background; this session uses Apple's recogniser.
+        if engine == .whisper && !whisper.isDownloaded { Task { await whisper.prepare() } }
+        if activeEngine == .whisper {
+            Task { @MainActor in
+                guard await Self.microphoneAllowed() else {
+                    self.state = .denied("Microphone access is off for Uberdoer. Allow it in System Settings → Privacy & Security → Microphone.")
+                    return
+                }
+                Task { await whisper.prepare() } // loads the model while you speak
+                self.beginWhisper()
+            }
+            return
+        }
         SFSpeechRecognizer.requestAuthorization { status in
             Task { @MainActor in
                 guard status == .authorized else {
                     self.state = .denied("Speech recognition is off for Uberdoer. Allow it in System Settings → Privacy & Security → Speech Recognition.")
                     return
                 }
-                #if os(iOS)
-                let micOK = await AVAudioApplication.requestRecordPermission()
-                #else
-                let micOK = await AVCaptureDevice.requestAccess(for: .audio)
-                #endif
-                guard micOK else {
+                guard await Self.microphoneAllowed() else {
                     self.state = .denied("Microphone access is off for Uberdoer. Allow it in System Settings → Privacy & Security → Microphone.")
                     return
                 }
@@ -88,6 +108,108 @@ final class Dictation {
             }
         }
     }
+
+    static func microphoneAllowed() async -> Bool {
+        #if os(iOS)
+        await AVAudioApplication.requestRecordPermission()
+        #else
+        await AVCaptureDevice.requestAccess(for: .audio)
+        #endif
+    }
+
+    // MARK: Whisper
+
+    private var samples: [Float] = []
+    private var heardSpeech = false
+    private var startedAt = Date()
+    private var lastSpeechAt = Date()
+    private var noiseFloor: Float = 0
+    private var partialTimer: Timer?
+    private var partialBusy = false
+
+    /// Whisper language: the one picked in the menu; "Automatic" = detect (Russian/English expected).
+    private var whisperLanguage: String? { followsKeyboard ? nil : locale.language.languageCode?.identifier }
+    private var keyboardLanguage: String { Self.defaultLocale.language.languageCode?.identifier ?? "en" }
+
+    private func beginWhisper() {
+        samples = []; heardSpeech = false; startedAt = Date(); lastSpeechAt = Date(); noiseFloor = 0
+        do {
+            #if os(iOS)
+            let session = AVAudioSession.sharedInstance()
+            try session.setCategory(.record, mode: .measurement, options: .duckOthers)
+            try session.setActive(true, options: .notifyOthersOnDeactivation)
+            #endif
+            let input = audio.inputNode
+            let inFormat = input.outputFormat(forBus: 0)
+            guard let outFormat = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: 16000, channels: 1, interleaved: false),
+                  let converter = AVAudioConverter(from: inFormat, to: outFormat) else {
+                state = .failed("Couldn't set up the microphone format."); return
+            }
+            input.removeTap(onBus: 0)
+            input.installTap(onBus: 0, bufferSize: 4096, format: inFormat) { [weak self] buffer, _ in
+                let cap = AVAudioFrameCount(Double(buffer.frameLength) * 16000 / inFormat.sampleRate + 32)
+                guard let out = AVAudioPCMBuffer(pcmFormat: outFormat, frameCapacity: cap) else { return }
+                var fed = false
+                converter.convert(to: out, error: nil) { _, status in
+                    if fed { status.pointee = .noDataNow; return nil }
+                    fed = true; status.pointee = .haveData; return buffer
+                }
+                guard let ch = out.floatChannelData?[0] else { return }
+                let chunk = Array(UnsafeBufferPointer(start: ch, count: Int(out.frameLength)))
+                Task { @MainActor in self?.appendWhisper(chunk) }
+            }
+            audio.prepare()
+            try audio.start()
+            state = .listening
+            partialTimer = Timer.scheduledTimer(withTimeInterval: 1.2, repeats: true) { [weak self] _ in
+                Task { @MainActor in self?.partialWhisper() }
+            }
+        } catch {
+            state = .failed("Couldn't start the microphone: \(error.localizedDescription)")
+            teardown()
+        }
+    }
+
+    /// Simple voice-activity check: louder than the room by a margin = speech.
+    private func appendWhisper(_ chunk: [Float]) {
+        guard state == .listening, !chunk.isEmpty else { return }
+        samples += chunk
+        let rms = sqrt(chunk.reduce(0) { $0 + $1 * $1 } / Float(chunk.count))
+        let elapsed = Date().timeIntervalSince(startedAt)
+        if elapsed < 0.4 { noiseFloor = max(noiseFloor, rms); return }
+        if rms > max(0.012, noiseFloor * 2.5) { heardSpeech = true; lastSpeechAt = Date() }
+        if heardSpeech && Date().timeIntervalSince(lastSpeechAt) > 1.6 { stop() }
+        else if !heardSpeech && elapsed > 8 { stop() }
+    }
+
+    /// While speaking: re-transcribe what's been said so far, so the title fills in live.
+    private func partialWhisper() {
+        guard state == .listening, heardSpeech, !partialBusy, samples.count > 8000, WhisperModel.shared.status == .ready else { return }
+        partialBusy = true
+        let audio = samples
+        Task { @MainActor in
+            let text = await WhisperModel.shared.transcribe(audio, language: whisperLanguage, expected: ["ru", "en"], fallback: keyboardLanguage)
+            if state == .listening && !text.isEmpty { transcript = text }
+            partialBusy = false
+        }
+    }
+
+    private func finishWhisper() {
+        let audio = samples
+        let spoke = heardSpeech
+        teardown()
+        state = .transcribing
+        Task { @MainActor in
+            let text = spoke ? await WhisperModel.shared.transcribe(audio, language: whisperLanguage, expected: ["ru", "en"], fallback: keyboardLanguage) : ""
+            transcript = text
+            state = .idle
+            let done = onFinish
+            onFinish = nil
+            done?(text)
+        }
+    }
+
+    // MARK: Apple
 
     private func begin() {
         guard let recognizer = SFSpeechRecognizer(locale: locale), recognizer.isAvailable else {
@@ -106,12 +228,12 @@ final class Dictation {
             if recognizer.supportsOnDeviceRecognition { request.requiresOnDeviceRecognition = true }
             self.request = request
 
-            let input = engine.inputNode
+            let input = audio.inputNode
             let format = input.outputFormat(forBus: 0)
             input.removeTap(onBus: 0)
             input.installTap(onBus: 0, bufferSize: 1024, format: format) { buffer, _ in request.append(buffer) }
-            engine.prepare()
-            try engine.start()
+            audio.prepare()
+            try audio.start()
             state = .listening
             armSilenceTimer(initial: true)
 
@@ -143,6 +265,7 @@ final class Dictation {
 
     func stop() {
         guard isListening else { return }
+        if activeEngine == .whisper { finishWhisper(); return }
         request?.endAudio()
         // Give the recogniser a moment to deliver the final result.
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { [weak self] in self?.finish() }
@@ -166,8 +289,9 @@ final class Dictation {
 
     private func teardown() {
         silenceTimer?.invalidate(); silenceTimer = nil
-        if engine.isRunning { engine.stop() }
-        engine.inputNode.removeTap(onBus: 0)
+        partialTimer?.invalidate(); partialTimer = nil
+        if audio.isRunning { audio.stop() }
+        audio.inputNode.removeTap(onBus: 0)
         request?.endAudio(); request = nil
         task?.cancel(); task = nil
         #if os(iOS)

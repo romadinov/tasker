@@ -1,5 +1,6 @@
 #if DEBUG
 import AppKit
+import WhisperKit
 import TaskerCore
 
 /// Development aid: `TASKER_SNAPSHOT_DIR=/path` makes the app render its own window for each
@@ -7,6 +8,22 @@ import TaskerCore
 @MainActor
 enum DebugSnapshots {
     static func runIfRequested() {
+        // TASKER_WHISPER_TEST=a.wav,b.wav: transcribe files with the app's Whisper path, log, quit.
+        if let files = ProcessInfo.processInfo.environment["TASKER_WHISPER_TEST"] {
+            Task { @MainActor in
+                let t0 = Date()
+                _ = await WhisperModel.shared.prepare()
+                NSLog("TASKER-WHISPER ready in %.1fs status=%@", Date().timeIntervalSince(t0), String(describing: WhisperModel.shared.status))
+                for f in files.split(separator: ",").map(String.init) {
+                    let audio = (try? AudioProcessor.loadAudioAsFloatArray(fromPath: f)) ?? []
+                    let t1 = Date()
+                    let text = await WhisperModel.shared.transcribe(audio, language: nil, expected: ["ru", "en"], fallback: "ru")
+                    NSLog("TASKER-WHISPER %@ (%.1fs audio, %.2fs): %@", (f as NSString).lastPathComponent, Double(audio.count) / 16000, Date().timeIntervalSince(t1), text)
+                }
+                NSApp.terminate(nil)
+            }
+            return
+        }
         guard let dir = ProcessInfo.processInfo.environment["TASKER_SNAPSHOT_DIR"] else { return }
         let model = AppModel.shared
         var steps: [(String, () -> Void)] = [

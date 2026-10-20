@@ -124,11 +124,14 @@ struct QuickEntryForm: View {
             due = capture.dueDate
             DispatchQueue.main.async { focus = .title }
             if capture.listen { toggleDictation() }
+            // Load Whisper now (~2 s when cached) so it's ready by the time you speak.
+            if dictation.engine == .whisper && WhisperModel.shared.isDownloaded { Task { await WhisperModel.shared.prepare() } }
         }
         .onDisappear { dictation.cancel() }
         .onChange(of: dictation.transcript) { _, text in
             guard dictation.isListening else { return }
-            title = titleBeforeDictation.isEmpty ? text : titleBeforeDictation + " " + text
+            let t = Self.asTitle(text)
+            title = titleBeforeDictation.isEmpty ? t : titleBeforeDictation + " " + t
         }
         #if os(iOS)
         .navigationTitle("New Action")
@@ -143,10 +146,21 @@ struct QuickEntryForm: View {
         Menu {
             Button(dictation.isListening ? "Stop Dictation" : "Dictate") { toggleDictation() }
             Divider()
+            Section("Engine") {
+                Button { dictation.engine = .whisper; Task { await WhisperModel.shared.prepare() } } label: {
+                    let t = "Whisper (on device)" + whisperNote
+                    if dictation.engine == .whisper { Label(t, systemImage: "checkmark") } else { Text(t) }
+                }
+                Button { dictation.engine = .apple } label: {
+                    if dictation.engine == .apple { Label("Apple", systemImage: "checkmark") } else { Text("Apple") }
+                }
+            }
+            Section("Language") {
             Button {
                 dictation.followKeyboard()
             } label: {
-                if dictation.followsKeyboard { Label("Match Keyboard Layout", systemImage: "checkmark") } else { Text("Match Keyboard Layout") }
+                let t = dictation.engine == .whisper ? "Automatic (detects Russian/English)" : "Match Keyboard Layout"
+                if dictation.followsKeyboard { Label(t, systemImage: "checkmark") } else { Text(t) }
             }
             ForEach(Dictation.languages, id: \.identifier) { l in
                 Button {
@@ -155,6 +169,7 @@ struct QuickEntryForm: View {
                     let name = Locale.current.localizedString(forIdentifier: l.identifier) ?? l.identifier
                     if !dictation.followsKeyboard && dictation.locale == l { Label(name, systemImage: "checkmark") } else { Text(name) }
                 }
+            }
             }
         } label: {
             Image(systemName: dictation.isListening ? "mic.fill" : "mic")
@@ -172,10 +187,29 @@ struct QuickEntryForm: View {
         }
     }
 
+    private var whisperNote: String {
+        switch WhisperModel.shared.status {
+        case .notDownloaded: " — downloads ~630 MB once"
+        case .downloading(let p): " — downloading \(Int(p * 100))%"
+        case .failed: " — download failed, click to retry"
+        default: ""
+        }
+    }
+
     @ViewBuilder var dictationStatus: some View {
+        if case .downloading(let p) = WhisperModel.shared.status {
+            Label("Downloading Whisper \(Int(p * 100))% (Apple's recogniser meanwhile)", systemImage: "arrow.down.circle")
+                .font(.caption).foregroundStyle(.secondary)
+        } else if WhisperModel.shared.status == .loading && dictation.engine == .whisper && dictation.isBusy {
+            Label(WhisperModel.shared.firstLoad ? "Preparing Whisper for this device (one time, can take several minutes)…" : "Loading Whisper…",
+                  systemImage: "hourglass").font(.caption).foregroundStyle(.secondary)
+        }
         switch dictation.state {
+        case .transcribing:
+            Label("Transcribing…", systemImage: "waveform").font(.caption).foregroundStyle(.secondary)
         case .listening, .starting:
-            Label("Listening — \(Locale.current.localizedString(forLanguageCode: dictation.locale.language.languageCode?.identifier ?? "") ?? dictation.locale.identifier)",
+            Label(dictation.activeEngine == .whisper && dictation.followsKeyboard ? "Listening — Whisper"
+                  : "Listening — \(Locale.current.localizedString(forLanguageCode: dictation.locale.language.languageCode?.identifier ?? "") ?? dictation.locale.identifier)",
                   systemImage: "waveform")
                 .font(.caption).foregroundStyle(.red)
         case .denied(let m), .failed(let m):
@@ -187,12 +221,22 @@ struct QuickEntryForm: View {
 
     func toggleDictation() {
         if dictation.isListening { dictation.stop(); return }
+        guard !dictation.isBusy else { return }
         titleBeforeDictation = title.trimmingCharacters(in: .whitespaces)
-        dictation.start { text in
+        dictation.start { raw in
+            let text = Self.asTitle(raw)
             guard !text.isEmpty else { return }
             title = titleBeforeDictation.isEmpty ? text : titleBeforeDictation + " " + text
             focus = .title // Return saves it to the Inbox
         }
+    }
+
+    /// Dictated sentence → action title: capital first letter, no closing full stop.
+    static func asTitle(_ s: String) -> String {
+        var t = s.trimmingCharacters(in: .whitespacesAndNewlines)
+        while t.hasSuffix(".") && !t.hasSuffix("...") { t.removeLast() }
+        guard let f = t.first else { return t }
+        return f.uppercased() + t.dropFirst()
     }
 
     // MARK: Fields
