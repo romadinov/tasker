@@ -1,5 +1,8 @@
 import SwiftUI
 import TaskerCore
+#if os(macOS)
+import AppKit
+#endif
 
 struct ContentColumn: View {
     @Environment(AppModel.self) private var model
@@ -15,7 +18,13 @@ struct ContentColumn: View {
     }
 
     var body: some View {
-        if model.sidebar == .nearby && model.searchText.isEmpty {
+        if model.sidebar == .analytics && model.searchText.isEmpty {
+            AnalyticsView()
+                .searchable(text: Bindable(model).searchText, placement: .toolbar, prompt: "Search everything")
+                #if os(iOS)
+                .toolbar { if !isCompactWidth { MainToolbar(model: model) } }
+                #endif
+        } else if model.sidebar == .nearby && model.searchText.isEmpty {
             NearbyView()
                 .searchable(text: Bindable(model).searchText, placement: .toolbar, prompt: "Search everything")
                 #if os(iOS)
@@ -66,12 +75,12 @@ struct ContentColumn: View {
             .onDeleteCommand { model.deleteItems(Array(model.selection)) }
             // Bare keys: Space completes, F flags.
             .onKeyPress(.space) {
-                guard model.editingID == nil, !model.selection.isEmpty else { return .ignored }
+                guard !typingInField, !model.selection.isEmpty else { return .ignored }
                 for id in model.selection { model.toggleComplete(id) }
                 return .handled
             }
             .onKeyPress("f") {
-                guard model.editingID == nil, !model.selection.isEmpty else { return .ignored }
+                guard !typingInField, !model.selection.isEmpty else { return .ignored }
                 model.toggleFlag(Array(model.selection))
                 return .handled
             }
@@ -79,9 +88,24 @@ struct ContentColumn: View {
             .listStyle(.plain)
             .refreshable { await model.sync?.syncNow() }
             #endif
+            #if os(macOS)
+            // Double-click a row (anywhere, at once) edits its name.
+            .contextMenu(forSelectionType: String.self) { ids in
+                ItemContextMenu(ids: Array(ids))
+            } primaryAction: { ids in
+                if ids.count == 1, let id = ids.first { model.beginEditing(id) }
+            }
+            #else
             .contextMenu(forSelectionType: String.self) { ids in
                 ItemContextMenu(ids: Array(ids))
             }
+            #endif
+            #if os(macOS)
+            .onChange(of: model.selection) { old, new in
+                let canScroll = ClickAnchor.keepClickedRowInPlace()
+                model.selectionMoved(from: old, to: new, canCompensate: canScroll)
+            }
+            #endif
             .onChange(of: model.scrollToRow) { _, id in
                 // Only when moving to the next item (Return after tags): scroll just enough to show it.
                 guard let id else { return }
@@ -91,7 +115,8 @@ struct ContentColumn: View {
                 }
             }
             .onChange(of: model.editingID) { _, id in
-                guard let id else { return }
+                // Only new rows need bringing into view; renaming an existing row must not scroll it.
+                guard let id, model.snapshot.tasks[id]?.title.isEmpty == true else { return }
                 // The row only exists after the list has diffed in the new snapshot.
                 for delay in [0.0, 0.08, 0.25] {
                     DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
@@ -147,6 +172,14 @@ struct ContentColumn: View {
         }
         return CalendarModel.shared.events(on: day)
     }
+
+    #if os(macOS)
+    /// Space/F are list shortcuts only when no text is being typed (title, Project/Tags fields, rename, note).
+    private var typingInField: Bool {
+        if model.editingID != nil || model.inlineField != nil || model.renamingID != nil || model.noteEditingID != nil { return true }
+        return NSApp.keyWindow?.firstResponder is NSText
+    }
+    #endif
 
     /// The toolbar "+" (and the debug hook) go through here.
     func addAction() {
@@ -268,7 +301,7 @@ struct FolderRow: View {
                 Disclosure(row: row)
                 Image(systemName: "folder.fill").foregroundStyle(f.dropped ? .secondary : Palette.folder)
                 RenamableName(id: f.id, name: f.name, placeholder: "Untitled folder", bold: true,
-                              color: f.dropped ? .secondary : .primary, strikethrough: f.dropped)
+                              color: f.dropped ? .secondary : .primary, strikethrough: f.dropped, doubleClick: false)
                 Spacer()
             }
             .padding(.leading, CGFloat(row.depth) * 18)

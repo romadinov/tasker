@@ -149,6 +149,7 @@ struct SidebarView: View {
                 row(.flagged, count: model.flaggedCount)
                 row(.review, count: model.reviewCount)
                 row(.nearby, count: model.nearbyCount)
+                row(.analytics)
             }
             Section("Perspectives") {
                 ForEach(model.snapshot.perspectives) { p in

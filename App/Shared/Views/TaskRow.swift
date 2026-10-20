@@ -28,11 +28,8 @@ struct TaskRow: View {
                             .foregroundStyle(titleColor(t, i))
                             .strikethrough(t.isCompleted || t.isDropped, color: .secondary)
                             .lineLimit(3)
-                            #if os(macOS)
-                            .onTapGesture(count: 2) { model.selection = [t.id]; model.editingID = t.id }
-                            #endif
                     }
-                    let selected = model.selection.contains(t.id) && model.selection.count == 1
+                    let selected = (model.selection.contains(t.id) && model.selection.count == 1) || model.lingeringOpen.contains(t.id)
                     if selected && !t.isProject {
                         // Editable fields for the selected row.
                         SelectedFieldsLine(task: t, info: i)

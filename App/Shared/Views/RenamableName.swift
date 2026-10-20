@@ -12,6 +12,8 @@ struct RenamableName: View {
     var bold = false
     var color: Color = .primary
     var strikethrough = false
+    /// False where the list's own double-click action starts renaming (main list).
+    var doubleClick = true
 
     var body: some View {
         if model.renamingID == id {
@@ -23,7 +25,7 @@ struct RenamableName: View {
                 .strikethrough(strikethrough)
                 .lineLimit(1)
                 #if os(macOS)
-                .onTapGesture(count: 2) { model.editingID = nil; model.renamingID = id }
+                .onTapGesture(count: 2) { if doubleClick { model.beginEditing(id) } }
                 #endif
         }
     }

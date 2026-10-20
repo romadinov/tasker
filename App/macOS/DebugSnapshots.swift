@@ -36,6 +36,7 @@ enum DebugSnapshots {
                 if let f = model.snapshot.libraryIDs.first(where: { model.snapshot.folders[$0] != nil }) { model.renamingID = f }
             }),
             ("rename-done", { model.renamingID = nil }),
+            ("analytics", { model.sidebar = .analytics }),
             ("forecast", { model.sidebar = .forecast }),
             ("tags", { model.sidebar = .tags }),
             ("review", { model.sidebar = .review }),
@@ -183,6 +184,78 @@ enum DebugSnapshots {
                         }
                         NSLog("TASKER-CLICKTAGS after click: inlineField=%@ panelVisible=%d gap=%.0f rowYBefore=%.0f rowYAfter=%.0f",
                               String(describing: model.inlineField?.field), panel != nil ? 1 : 0, gap, pos.y, rowY())
+                    }
+                }
+            }
+        }))
+        steps.append(("space-in-project-field", {
+            model.inlineField = nil; model.editingID = nil
+            model.sidebar = .inbox
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                guard let id = model.sections().flatMap(\.rows).first?.id else { return }
+                model.selection = [id]
+                model.inlineField = .init(id: id, field: .project)
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+                    guard let win = NSApp.windows.first(where: { $0.frame.width > 600 }) else { return }
+                    for (type, chars) in [(NSEvent.EventType.keyDown, "a"), (.keyUp, "a"), (.keyDown, " "), (.keyUp, " ")] {
+                        if let e = NSEvent.keyEvent(with: type, location: .zero, modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime,
+                                                    windowNumber: win.windowNumber, context: nil, characters: chars, charactersIgnoringModifiers: chars,
+                                                    isARepeat: false, keyCode: chars == " " ? 49 : 0) { NSApp.postEvent(e, atStart: false) }
+                    }
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                        NSLog("TASKER-SPACE completed=%d fieldText='%@' firstResponder=%@", model.snapshot.tasks[id]?.isCompleted == true ? 1 : 0,
+                              (win.firstResponder as? NSTextView)?.string ?? "-", String(describing: type(of: win.firstResponder as Any)))
+                    }
+                }
+            }
+        }))
+        steps.append(("dblclick-title", {
+            // Project field open on one row, then a real double-click on another row's title.
+            model.inlineField = nil; model.editingID = nil
+            model.sidebar = .inbox
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                let rows = model.sections().flatMap(\.rows)
+                guard rows.count > 6, let target = model.snapshot.tasks[rows[5].id], !target.title.isEmpty else { return }
+                model.selection = [rows[2].id]
+                model.inlineField = .init(id: rows[2].id, field: .project)
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+                    let app = AXUIElementCreateApplication(getpid())
+                    func find(_ el: AXUIElement, _ depth: Int) -> AXUIElement? {
+                        var v: CFTypeRef?
+                        AXUIElementCopyAttributeValue(el, kAXValueAttribute as CFString, &v)
+                        if (v as? String) == target.title { return el }
+                        guard depth < 40 else { return nil }
+                        var kids: CFTypeRef?
+                        AXUIElementCopyAttributeValue(el, kAXChildrenAttribute as CFString, &kids)
+                        for k in (kids as? [AXUIElement]) ?? [] { if let f = find(k, depth + 1) { return f } }
+                        return nil
+                    }
+                    func frame(_ el: AXUIElement) -> CGRect {
+                        var posV: CFTypeRef?, sizeV: CFTypeRef?
+                        AXUIElementCopyAttributeValue(el, kAXPositionAttribute as CFString, &posV)
+                        AXUIElementCopyAttributeValue(el, kAXSizeAttribute as CFString, &sizeV)
+                        var pos = CGPoint.zero, size = CGSize.zero
+                        if let posV { AXValueGetValue(posV as! AXValue, .cgPoint, &pos) }
+                        if let sizeV { AXValueGetValue(sizeV as! AXValue, .cgSize, &size) }
+                        return CGRect(origin: pos, size: size)
+                    }
+                    guard let el = find(app, 0) else { NSLog("TASKER-DBL title not found"); return }
+                    let r = frame(el)
+                    guard let win = NSApp.windows.first(where: { $0.frame.width > 600 }), let screen = win.screen ?? NSScreen.main else { return }
+                    let p = win.convertPoint(fromScreen: CGPoint(x: r.minX + 20, y: screen.frame.maxY - r.midY))
+                    let t0 = ProcessInfo.processInfo.systemUptime
+                    for (n, type) in [(1, NSEvent.EventType.leftMouseDown), (1, .leftMouseUp), (2, .leftMouseDown), (2, .leftMouseUp)] {
+                        if let e = NSEvent.mouseEvent(with: type, location: p, modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime,
+                                                      windowNumber: win.windowNumber, context: nil, eventNumber: 0, clickCount: n, pressure: 1) { NSApp.postEvent(e, atStart: false) }
+                    }
+                    for delay in [0.05, 0.4] {
+                        DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+                            let editor = (win.firstResponder as? NSTextView)?.string
+                            let rowNow = find(app, 0).map(frame) ?? .zero
+                            NSLog("TASKER-DBL selection=%@ +%.2fs editingID=%@ (target %@) firstResponder=%@ inlineField=%@ yBefore=%.0f yNow=%.0f",
+                                  model.selection.joined(separator: ","), ProcessInfo.processInfo.systemUptime - t0, model.editingID ?? "nil", target.id, editor ?? "-",
+                                  String(describing: model.inlineField?.field), r.minY, rowNow == .zero ? -1 : rowNow.minY)
+                        }
                     }
                 }
             }

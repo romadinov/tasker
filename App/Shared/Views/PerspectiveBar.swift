@@ -31,6 +31,7 @@ extension AppModel {
             BarItem(item: .flagged, title: "Flagged", icon: SidebarItem.flagged.icon, count: flaggedCount, alert: false),
             BarItem(item: .review, title: "Review", icon: SidebarItem.review.icon, count: reviewCount, alert: false),
             BarItem(item: .nearby, title: "Nearby", icon: SidebarItem.nearby.icon, count: nearbyCount, alert: false),
+            BarItem(item: .analytics, title: "Analytics", icon: SidebarItem.analytics.icon, count: 0, alert: false),
         ]
         out += snapshot.perspectives.map { BarItem(item: .perspective($0.id), title: $0.name, icon: $0.icon, count: 0, alert: false) }
         return out

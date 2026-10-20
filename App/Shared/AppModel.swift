@@ -4,20 +4,20 @@ import SwiftUI
 import TaskerCore
 
 enum SidebarItem: Hashable, Codable {
-    case inbox, forecast, flagged, projects, tags, review, nearby
+    case inbox, forecast, flagged, projects, tags, review, nearby, analytics
     case perspective(String)
 
     var title: String {
         switch self {
         case .inbox: "Inbox"; case .forecast: "Forecast"; case .flagged: "Flagged"
-        case .projects: "Projects"; case .tags: "Tags"; case .review: "Review"; case .nearby: "Nearby"
+        case .projects: "Projects"; case .tags: "Tags"; case .review: "Review"; case .nearby: "Nearby"; case .analytics: "Analytics"
         case .perspective: "Perspective"
         }
     }
     var icon: String {
         switch self {
         case .inbox: "tray"; case .forecast: "calendar"; case .flagged: "flag"
-        case .projects: "folder"; case .tags: "tag"; case .review: "cup.and.saucer"; case .nearby: "location"
+        case .projects: "folder"; case .tags: "tag"; case .review: "cup.and.saucer"; case .nearby: "location"; case .analytics: "chart.bar.xaxis"
         case .perspective: "line.3.horizontal.decrease.circle"
         }
     }
@@ -109,6 +109,9 @@ final class AppModel {
     @ObservationIgnored private var shownViewKey = ""
     @ObservationIgnored private var localEditPending = false
     @ObservationIgnored private var keptSeq = 0
+    /// Rows that stay open (showing their fields) after the selection moved below them, because closing
+    /// them would shift the clicked row and the list can't scroll to make up for it. Cleared like kept rows.
+    var lingeringOpen: Set<String> = []
     /// Where each filed item sat: the inbox item just above it (nil = top), so it can stay in place.
     @ObservationIgnored var inboxAnchor: [String: String?] = [:]
     @ObservationIgnored var inboxIndex: [String: Int] = [:]
@@ -287,6 +290,20 @@ final class AppModel {
     }
 
     // MARK: Mutations
+
+    /// Double-click: edit an action's or project's title in its row, or rename a folder/tag in place.
+    /// Closes an open Project/Tags field first, so it works from there too.
+    func beginEditing(_ id: String) {
+        inlineField = nil
+        if snapshot.tasks[id] != nil {
+            renamingID = nil
+            selection = [id]
+            editingID = id
+        } else {
+            editingID = nil
+            renamingID = id
+        }
+    }
 
     /// Renames a folder, tag, project or action (plain text, no quick-entry shorthand).
     func rename(_ id: String, to name: String) {
@@ -871,6 +888,19 @@ final class AppModel {
 
     private func resetKeptRows() {
         keptRows = [:]; pinnedRows = []; shownLayout = []; localEditPending = false
+        if !lingeringOpen.isEmpty { DispatchQueue.main.async { self.lingeringOpen = [] } }
+    }
+
+    /// Called by the list when the selection changes.
+    func selectionMoved(from old: Set<String>, to new: Set<String>, canCompensate: Bool) {
+        guard new.count == 1, let target = new.first else { return }
+        let order = shownLayout.flatMap { $0.rows.map(\.id) }
+        guard let ti = order.firstIndex(of: target) else { return }
+        func above(_ id: String) -> Bool { (order.firstIndex(of: id) ?? .max) < ti }
+        var keep = lingeringOpen.filter(above)          // rows below the click may close: nothing above it moves
+        if !canCompensate, old.count == 1, let prev = old.first, prev != target, above(prev) { keep.insert(prev) }
+        keep.remove(target)
+        if keep != lingeringOpen { lingeringOpen = keep }
     }
 
     /// Remembers where `ids` are shown now, so they stay there after the edit that follows.
@@ -1006,7 +1036,7 @@ final class AppModel {
             }
         case .forecast:
             return forecastSections()
-        case .nearby:
+        case .nearby, .analytics:
             return []
         case .perspective(let pid):
             guard let p = snapshot.perspectives.first(where: { $0.id == pid }) else { return [] }
