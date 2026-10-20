@@ -99,8 +99,6 @@ struct CheckCircle: View {
                     .background(Circle().fill(task.isCompleted ? Color.secondary.opacity(0.25) : .clear))
                 if task.isCompleted {
                     Image(systemName: "checkmark").font(.system(size: 9, weight: .bold)).foregroundStyle(.secondary)
-                } else if info.effectiveFlagged {
-                    Circle().fill(Palette.flag).frame(width: 6, height: 6)
                 }
             }
             .frame(width: 18, height: 18)
