@@ -92,3 +92,26 @@ import Testing
         #expect(snap.tagChildren[Snapshot.tagsKey] == ["x", "y"])
     }
 }
+
+@Suite struct ImportOrderTests {
+    /// OmniFocus numbers folders and projects together within a container; the import must keep that interleaving.
+    @Test func foldersAndProjectsKeepTheirMixedOrder() throws {
+        let json = """
+        {"folders":[{"id":"F1","name":"Home","parent":null,"idx":1},{"id":"F2","name":"Work","parent":null,"idx":3},
+                    {"id":"F3","name":"Sub","parent":"F2","idx":1}],
+         "projects":[{"id":"P0","name":"First","parent":null,"idx":0},{"id":"P2","name":"Middle","parent":null,"idx":2},
+                     {"id":"P4","name":"Last","parent":null,"idx":4},{"id":"PW","name":"In work","parent":"F2","idx":0},
+                     {"id":"PW2","name":"In work 2","parent":"F2","idx":2}],
+         "tasks":[{"id":"T1","name":"b","parent":"P0","idx":1},{"id":"T0","name":"a","parent":"P0","idx":0},
+                  {"id":"I1","name":"inbox b","parent":null,"idx":1},{"id":"I0","name":"inbox a","parent":null,"idx":0}],
+         "tags":[],"perspectives":[]}
+        """
+        let s = try tempStore()
+        _ = OmniFocusImport.apply(try OmniFocusImport.decode(Data(json.utf8)), to: s)
+        let snap = s.snapshot()
+        #expect(snap.libraryIDs == ["P0", "F1", "P2", "F2", "P4"])
+        #expect(snap.childIDs("F2") == ["PW", "F3", "PW2"])
+        #expect(snap.childIDs("P0") == ["T0", "T1"])
+        #expect(snap.inboxIDs == ["I0", "I1"])
+    }
+}

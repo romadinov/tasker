@@ -141,11 +141,15 @@ public enum OmniFocusImport {
             return out
         }
 
+        // Folders and projects share one sibling list per container (OmniFocus numbers them together),
+        // so they're ordered together; otherwise their interleaving is lost.
+        let library: [(parent: String?, idx: Int)] = e.folders.map { ($0.parent, $0.idx) } + e.projects.map { ($0.parent, $0.idx) }
+        let libraryKeys = keys(library, parent: { $0.parent }, idx: { $0.idx })
+
         store.transact("Import folders & tags") { tx in
-            let fk = keys(e.folders, parent: { $0.parent }, idx: { $0.idx })
             for (n, f) in e.folders.enumerated() {
                 tx.set(.folder, f.id, F.name, .string(f.name))
-                tx.set(.folder, f.id, F.pos, Position(parent: f.parent, order: fk[n]!).json)
+                tx.set(.folder, f.id, F.pos, Position(parent: f.parent, order: libraryKeys[n]!).json)
                 tx.set(.folder, f.id, F.status, (f.dropped ?? false) ? "dropped" : "active")
                 tx.set(.folder, f.id, F.deleted, false)
             }
@@ -170,13 +174,13 @@ public enum OmniFocusImport {
             }
         }
 
-        let all = e.projects.map { ($0, true) } + e.tasks.map { ($0, false) }
-        let orderKeys = keys(all, parent: { $0.0.parent }, idx: { $0.0.idx })
-        let indexed = Array(all.enumerated())
-        for chunk in stride(from: 0, to: indexed.count, by: 1500) {
+        let taskKeys = keys(e.tasks, parent: { $0.parent }, idx: { $0.idx })
+        let all = e.projects.enumerated().map { ($1, true, libraryKeys[e.folders.count + $0]!) }
+            + e.tasks.enumerated().map { ($1, false, taskKeys[$0]!) }
+        for chunk in stride(from: 0, to: all.count, by: 1500) {
             store.transact("Import from OmniFocus") { tx in
-                for (n, (r, isProject)) in indexed[chunk..<min(chunk + 1500, indexed.count)] {
-                    write(r, isProject: isProject, order: orderKeys[n]!, tx: &tx)
+                for (r, isProject, order) in all[chunk..<min(chunk + 1500, all.count)] {
+                    write(r, isProject: isProject, order: order, tx: &tx)
                 }
             }
         }
