@@ -79,6 +79,13 @@ struct ContentColumn: View {
                 for id in model.selection { model.toggleComplete(id) }
                 return .handled
             }
+            // Return on a selected row: new item right below it, in edit mode (double-click edits the title).
+            .onKeyPress(.return) {
+                guard !typingInField, model.selection.count == 1, let id = model.selection.first else { return .ignored }
+                if model.snapshot.folders[id] != nil { model.newTask(isProject: true) }
+                else { model.newTask() } // after an action; at the top of a selected project
+                return .handled
+            }
             .onKeyPress("f") {
                 guard !typingInField, !model.selection.isEmpty else { return .ignored }
                 model.toggleFlag(Array(model.selection))
@@ -103,6 +110,7 @@ struct ContentColumn: View {
             #if os(macOS)
             .onChange(of: model.selection) { old, new in
                 let canScroll = ClickAnchor.keepClickedRowInPlace()
+                // Synchronously, so a row kept open never closes for a frame first.
                 model.selectionMoved(from: old, to: new, canCompensate: canScroll)
             }
             #endif

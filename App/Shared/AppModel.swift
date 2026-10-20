@@ -384,7 +384,8 @@ final class AppModel {
                 n.parent = snapshot.projectInfo[s]?.folderID; n.placement = .after(s)
             }
         } else if let s = selected, let t = snapshot.tasks[s] {
-            if t.isProject { n.parent = s; n.placement = .end }
+            // A project: the new action goes at its top, i.e. right below the selected row.
+            if t.isProject { n.parent = s; n.placement = .start }
             else { n.parent = snapshot.info[s]?.parentID; n.placement = .after(s); n.tagIDs = t.tagIDs.filter { _ in sidebar == .tags } }
         }
         // With nothing selected a new inbox item goes on top, where it's visible immediately.

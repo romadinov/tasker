@@ -84,7 +84,8 @@ Mac app → Settings → Import → *Read from OmniFocus*. This runs an Omni Aut
 | ⌃⌥⌘Space | Clip from the front app: browser page, Mail message link, or selected text (configurable) |
 | Services → Send to Uberdoer | Selected text from any app |
 | ⌘N / ⇧⌘N / ⌥⇧⌘N | New action / project / folder |
-| ↩ | Edit title (↩ again adds the next sibling) |
+| ↩ | New action below the selected row, in edit mode (↩ while editing adds the next one) |
+| Double-click | Edit an item's name (actions, projects, folders, tags) |
 | Space | Complete (in the list) |
 | F / ⇧⌘L | Flag |
 | ⌘K | Clean Up |
