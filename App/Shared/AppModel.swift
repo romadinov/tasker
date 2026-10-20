@@ -981,10 +981,16 @@ final class AppModel {
         var past = 0, future = 0
         for t in snapshot.tasks.values {
             guard let i = snapshot.info[t.id], i.isRemaining else { continue }
-            guard let d = t.dueDate ?? t.plannedDate else { continue }
-            if d < today { if t.dueDate != nil { past += 1 }; continue }
+            // Available flagged actions are also listed under Today (see forecastSections).
+            let flaggedToday = !t.isProject && i.isAvailable && i.effectiveFlagged
+            guard let d = t.dueDate ?? t.plannedDate else {
+                if flaggedToday { counts[today, default: 0] += 1 }
+                continue
+            }
+            if d < today { if t.dueDate != nil { past += 1 } else if flaggedToday { counts[today, default: 0] += 1 }; continue }
             let day = cal.startOfDay(for: d)
             counts[day, default: 0] += 1
+            if day != today && flaggedToday { counts[today, default: 0] += 1 }
             if day >= horizon { future += 1 }
         }
         countsCache = (snapshot.version, today, counts, past, future)
@@ -1031,8 +1037,9 @@ final class AppModel {
         let cal = Calendar.current
         let today = cal.startOfDay(for: snapshot.now)
         var out: [OutlineSection] = []
+        var past: [String] = []
         if forecastDay == today {
-            let past = forecastIDs(for: .distantPast).due
+            past = forecastIDs(for: .distantPast).due
             if !past.isEmpty { out.append(OutlineSection(id: "past", title: "Past", rows: flat(past))) }
         }
         let ids = forecastIDs(for: forecastDay)
@@ -1044,7 +1051,23 @@ final class AppModel {
             if cal.isDateInTomorrow(forecastDay) { return "Tomorrow — \(d)" }
             return d
         }()
-        let main = ids.due + ids.planned
+        var main = ids.due + ids.planned
+        if forecastDay == today {
+            // Today also lists every available flagged action, and ready work comes first:
+            // flagged & available, then other available items, then what isn't available yet.
+            let shown = Set(main + past)
+            let flagged = snapshot.tasks.values
+                .filter { !$0.isProject && !shown.contains($0.id) && snapshot.info[$0.id]?.isAvailable == true && snapshot.info[$0.id]?.effectiveFlagged == true }
+                .map(\.id)
+            main += PerspectiveEngine(snapshot).sort(flagged, by: .due)
+            func rank(_ id: String) -> Int {
+                let available = snapshot.info[id]?.isAvailable == true
+                let flag = snapshot.info[id]?.effectiveFlagged == true
+                return available ? (flag ? 0 : 1) : 2
+            }
+            let pos = Dictionary(uniqueKeysWithValues: main.enumerated().map { ($1, $0) })
+            main.sort { (rank($0), pos[$0]!) < (rank($1), pos[$1]!) }
+        }
         if !main.isEmpty || forecastDay == today { out.append(OutlineSection(id: "day", title: dayTitle, rows: flat(main))) }
         if !ids.deferred.isEmpty { out.append(OutlineSection(id: "deferred", title: "Becoming available", rows: flat(ids.deferred))) }
         return out
