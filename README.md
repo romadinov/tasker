@@ -90,6 +90,8 @@ Mac app → Settings → Import → *Read from OmniFocus*. This runs an Omni Aut
 | F / ⇧⌘L | Flag |
 | ⌘K | Clean Up |
 | ⌃⌥⇧Space | Quick Clip (saves straight to the Inbox) |
+| ⌃⌥V | Voice Entry: Quick Entry that starts listening; Return saves to the Inbox (configurable) |
+| ⌘D in Quick Entry | Dictate (mic button; its menu picks the language) |
 | ⌘] / ⌘[ | Indent / outdent (actions, projects into folders, folders, tags) |
 | ⇧⌘] / ⇧⌘[ | Add Inside (new subtask) / Add Outside |
 | ⌃⌘↑ ↓ ← → | Move up / down / left / right (works on a multi-selection) |

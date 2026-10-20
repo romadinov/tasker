@@ -17,6 +17,10 @@
 	<string>Uberdoer shows actions for the shops and places you are at, in Nearby.</string>
 	<key>NSCalendarsFullAccessUsageDescription</key>
 	<string>Uberdoer shows your calendar events next to due and planned actions in Forecast.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Uberdoer listens while you dictate a new action.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Uberdoer turns what you say into the text of a new action.</string>
 	<key>NSCalendarsUsageDescription</key>
 	<string>Uberdoer shows your calendar events next to due and planned actions in Forecast.</string>
 	<key>NSAppleEventsUsageDescription</key>

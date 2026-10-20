@@ -19,6 +19,10 @@
 	<string>Uberdoer can remind you of actions when you arrive at or leave a place, such as a shopping centre.</string>
 	<key>NSCalendarsFullAccessUsageDescription</key>
 	<string>Uberdoer shows your calendar events next to due and planned actions in Forecast.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Uberdoer listens while you dictate a new action.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Uberdoer turns what you say into the text of a new action.</string>
 	<key>NSCalendarsUsageDescription</key>
 	<string>Uberdoer shows your calendar events next to due and planned actions in Forecast.</string>
 	<key>UIBackgroundModes</key>

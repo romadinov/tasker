@@ -11,6 +11,7 @@ struct Shortcut: Codable, Equatable {
     static let quickEntryDefault = Shortcut(keyCode: UInt32(kVK_Space), carbonModifiers: UInt32(controlKey | optionKey), display: "⌃⌥Space")
     static let clipDefault = Shortcut(keyCode: UInt32(kVK_Space), carbonModifiers: UInt32(controlKey | optionKey | cmdKey), display: "⌃⌥⌘Space")
     static let quickClipDefault = Shortcut(keyCode: UInt32(kVK_Space), carbonModifiers: UInt32(controlKey | optionKey | shiftKey), display: "⌃⌥⇧Space")
+    static let voiceEntryDefault = Shortcut(keyCode: UInt32(kVK_ANSI_V), carbonModifiers: UInt32(controlKey | optionKey), display: "⌃⌥V")
 
     init(keyCode: UInt32, carbonModifiers: UInt32, display: String) {
         self.keyCode = keyCode; self.carbonModifiers = carbonModifiers; self.display = display

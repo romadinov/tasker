@@ -89,6 +89,7 @@ enum HotKeys {
     static let quickEntryKey = "hotkey.quickEntry"
     static let clipKey = "hotkey.clip"
     static let quickClipKey = "hotkey.quickClip"
+    static let voiceEntryKey = "hotkey.voiceEntry"
 
     static func apply() {
         HotKeyCenter.shared.register(id: 1, Shortcut.load(quickEntryKey, default: .quickEntryDefault)) {
@@ -99,6 +100,12 @@ enum HotKeys {
         }
         HotKeyCenter.shared.register(id: 3, Shortcut.load(quickClipKey, default: .quickClipDefault)) {
             Clipper.clipFrontmost(quick: true)
+        }
+        // Voice entry: Quick Entry that starts listening at once; Return saves to the Inbox.
+        HotKeyCenter.shared.register(id: 4, Shortcut.load(voiceEntryKey, default: .voiceEntryDefault)) {
+            var c = AppModel.Capture()
+            c.listen = true
+            QuickEntryController.shared.show(capture: c)
         }
     }
 }
@@ -126,6 +133,7 @@ struct TaskerCommands: Commands {
             Button("New Folder") { model.newFolder() }.keyboardShortcut("n", modifiers: [.command, .option, .shift])
             Divider()
             Button("Quick Entry…") { QuickEntryController.shared.show() }.keyboardShortcut("e", modifiers: [.command, .control])
+            Button("Voice Entry…") { var c = AppModel.Capture(); c.listen = true; QuickEntryController.shared.show(capture: c) }
             Divider()
             OpenImportSettingsButton()
         }

@@ -27,6 +27,9 @@ struct QuickEntryForm: View {
     @State private var dueOpen = false
     @State private var repeatOpen = false
     @State private var savedCount = 0
+    @State private var dictation = Dictation()
+    /// Title text before dictation started; the live transcript is appended to it.
+    @State private var titleBeforeDictation = ""
     @FocusState private var focus: Focus?
 
     var body: some View {
@@ -72,6 +75,7 @@ struct QuickEntryForm: View {
                         Image(systemName: flagged ? "flag.fill" : "flag").foregroundStyle(flagged ? Palette.flag : Color.secondary.opacity(0.6))
                     }
                     .buttonStyle(.plain).help("Flag")
+                    micButton
                 }
                 .padding(.top, 2)
             }
@@ -92,6 +96,7 @@ struct QuickEntryForm: View {
                 .foregroundStyle(.secondary)
                 .help(showMore ? "Hide more fields" : "Show Defer, Planned and Estimate")
                 if savedCount > 0 { Text("Saved \(savedCount)").font(.caption).foregroundStyle(.secondary) }
+                dictationStatus
                 Spacer()
                 Button("Cancel", role: .cancel) { onDone() }
                     .keyboardShortcut(.cancelAction)
@@ -118,11 +123,76 @@ struct QuickEntryForm: View {
             flagged = capture.flagged || model.sidebar == .flagged
             due = capture.dueDate
             DispatchQueue.main.async { focus = .title }
+            if capture.listen { toggleDictation() }
+        }
+        .onDisappear { dictation.cancel() }
+        .onChange(of: dictation.transcript) { _, text in
+            guard dictation.isListening else { return }
+            title = titleBeforeDictation.isEmpty ? text : titleBeforeDictation + " " + text
         }
         #if os(iOS)
         .navigationTitle("New Action")
         .navigationBarTitleDisplayMode(.inline)
         #endif
+    }
+
+    // MARK: Speech
+
+    /// Mic: click to dictate the title (stops by itself after a pause); the menu picks the language.
+    var micButton: some View {
+        Menu {
+            Button(dictation.isListening ? "Stop Dictation" : "Dictate") { toggleDictation() }
+            Divider()
+            Button {
+                dictation.followKeyboard()
+            } label: {
+                if dictation.followsKeyboard { Label("Match Keyboard Layout", systemImage: "checkmark") } else { Text("Match Keyboard Layout") }
+            }
+            ForEach(Dictation.languages, id: \.identifier) { l in
+                Button {
+                    dictation.locale = l
+                } label: {
+                    let name = Locale.current.localizedString(forIdentifier: l.identifier) ?? l.identifier
+                    if !dictation.followsKeyboard && dictation.locale == l { Label(name, systemImage: "checkmark") } else { Text(name) }
+                }
+            }
+        } label: {
+            Image(systemName: dictation.isListening ? "mic.fill" : "mic")
+                .foregroundStyle(dictation.isListening ? Color.red : Color.secondary.opacity(0.6))
+                .symbolEffect(.pulse, isActive: dictation.isListening)
+        } primaryAction: {
+            toggleDictation()
+        }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .help("Dictate (⌘D) — the menu picks the language")
+        .background {
+            Button("") { toggleDictation() }.keyboardShortcut("d").opacity(0).frame(width: 0, height: 0)
+        }
+    }
+
+    @ViewBuilder var dictationStatus: some View {
+        switch dictation.state {
+        case .listening, .starting:
+            Label("Listening — \(Locale.current.localizedString(forLanguageCode: dictation.locale.language.languageCode?.identifier ?? "") ?? dictation.locale.identifier)",
+                  systemImage: "waveform")
+                .font(.caption).foregroundStyle(.red)
+        case .denied(let m), .failed(let m):
+            Text(m).font(.caption).foregroundStyle(.orange).lineLimit(2)
+        case .idle:
+            EmptyView()
+        }
+    }
+
+    func toggleDictation() {
+        if dictation.isListening { dictation.stop(); return }
+        titleBeforeDictation = title.trimmingCharacters(in: .whitespaces)
+        dictation.start { text in
+            guard !text.isEmpty else { return }
+            title = titleBeforeDictation.isEmpty ? text : titleBeforeDictation + " " + text
+            focus = .title // Return saves it to the Inbox
+        }
     }
 
     // MARK: Fields

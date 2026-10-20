@@ -786,6 +786,8 @@ final class AppModel {
         var tagIDs: [String] = []
         var flagged = false
         var dueDate: Date?
+        /// Open Quick Entry already listening (voice entry).
+        var listen = false
     }
 
     var quickEntryCapture = Capture()

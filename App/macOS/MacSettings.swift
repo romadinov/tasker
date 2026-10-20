@@ -22,6 +22,7 @@ struct ShortcutSettings: View {
     @State private var quick = Shortcut.load(HotKeys.quickEntryKey, default: .quickEntryDefault)
     @State private var clip = Shortcut.load(HotKeys.clipKey, default: .clipDefault)
     @State private var quickClip = Shortcut.load(HotKeys.quickClipKey, default: .quickClipDefault)
+    @State private var voice = Shortcut.load(HotKeys.voiceEntryKey, default: .voiceEntryDefault)
     @State private var axGranted = Clipper.accessibilityGranted
 
     var body: some View {
@@ -30,6 +31,7 @@ struct ShortcutSettings: View {
                 LabeledContent("Quick Entry") { ShortcutRecorder(shortcut: $quick) }
                 LabeledContent("Clip (review in Quick Entry)") { ShortcutRecorder(shortcut: $clip) }
                 LabeledContent("Quick Clip (save straight to Inbox)") { ShortcutRecorder(shortcut: $quickClip) }
+                LabeledContent("Voice Entry (dictate a new action)") { ShortcutRecorder(shortcut: $voice) }
             } footer: {
                 Text("Work from any app. Clips always carry a link back: the page URL in Safari, Chrome, Arc, Brave, Edge, Vivaldi and Orion; the email in Mail and Mimestream (select the message first); the highlighted message in Slack (hover or arrow to it); plus any selected text. Mimestream and Slack links need Accessibility access.")
             }
@@ -50,6 +52,7 @@ struct ShortcutSettings: View {
         .onChange(of: quick) { _, v in Shortcut.save(v, HotKeys.quickEntryKey); HotKeys.apply() }
         .onChange(of: clip) { _, v in Shortcut.save(v, HotKeys.clipKey); HotKeys.apply() }
         .onChange(of: quickClip) { _, v in Shortcut.save(v, HotKeys.quickClipKey); HotKeys.apply() }
+        .onChange(of: voice) { _, v in Shortcut.save(v, HotKeys.voiceEntryKey); HotKeys.apply() }
         .onReceive(Timer.publish(every: 2, on: .main, in: .common).autoconnect()) { _ in axGranted = Clipper.accessibilityGranted }
     }
 }
