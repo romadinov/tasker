@@ -165,6 +165,8 @@ struct OmniFocusImportView: View {
         Task.detached {
             let summary = OmniFocusImport.apply(export, to: store)
             await MainActor.run {
+                // The import wrote straight to the store; refresh what the window shows.
+                AppModel.shared.reloadSnapshot()
                 AppModel.shared.sync?.localChangesCommitted()
                 phase = .done("Imported \(summary.description). Uploading to iCloud in the background.")
             }

@@ -276,6 +276,9 @@ final class AppModel {
 
     // MARK: Mutations
 
+    /// Re-reads the store after something wrote to it directly (e.g. the OmniFocus import).
+    func reloadSnapshot() { snapshot = store.snapshot() }
+
     @discardableResult
     func perform(_ name: String, _ body: (inout Tx) -> Void) -> Bool {
         guard let record = store.transact(name, body) else { return false }

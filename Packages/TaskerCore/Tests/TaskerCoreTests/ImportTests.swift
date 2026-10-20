@@ -57,8 +57,11 @@ enum CRDTStateAccess {
 @Suite struct SeedDatabase {
     @Test(.enabled(if: ProcessInfo.processInfo.environment["TASKER_SEED_DB"] != nil && ImportTests.exportURL != nil))
     func seed() throws {
-        let store = try Store(url: URL(fileURLWithPath: ProcessInfo.processInfo.environment["TASKER_SEED_DB"]!))
+        // A role other than "app" gets its own replica id, so this is safe while the app has the database open.
+        let role = ProcessInfo.processInfo.environment["TASKER_SEED_ROLE"] ?? "app"
+        let store = try Store(url: URL(fileURLWithPath: ProcessInfo.processInfo.environment["TASKER_SEED_DB"]!), role: role)
         let export = try OmniFocusImport.decode(Data(contentsOf: ImportTests.exportURL!))
         print(OmniFocusImport.apply(export, to: store))
+        TaskerConfig.postExternalChange()
     }
 }
