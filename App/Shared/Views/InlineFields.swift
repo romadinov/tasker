@@ -15,9 +15,13 @@ struct InlineTextField: NSViewRepresentable {
     var onSubmit: () -> Void
     var onCancel: () -> Void
     var onEndEditing: () -> Void
+    /// Fields editing the same thing share a key. SwiftUI sometimes creates the field twice; when focus
+    /// moves from one copy to the other, the first must hand over quietly instead of ending the edit.
+    var focusKey: String? = nil
 
     func makeNSView(context: Context) -> AutoFocusTextField {
         let f = AutoFocusTextField()
+        if let focusKey { f.identifier = NSUserInterfaceItemIdentifier(focusKey) }
         f.isBordered = false
         f.drawsBackground = false
         f.focusRingType = .none
@@ -71,8 +75,19 @@ struct InlineTextField: NSViewRepresentable {
 
         func controlTextDidEndEditing(_ n: Notification) {
             guard !finished else { return }
-            finished = true
-            parent.onEndEditing()
+            guard let key = parent.focusKey, let me = n.object as? NSTextField, let window = me.window else {
+                finished = true; parent.onEndEditing(); return
+            }
+            // Focus is still moving at this point; look once it has settled.
+            DispatchQueue.main.async { [weak self] in
+                guard let self, !self.finished else { return }
+                if let editor = window.firstResponder as? NSTextView, let other = editor.delegate as? NSTextField,
+                   other !== me, other.identifier?.rawValue == key {
+                    return // another copy of this editor took over
+                }
+                self.finished = true
+                self.parent.onEndEditing()
+            }
         }
     }
 }

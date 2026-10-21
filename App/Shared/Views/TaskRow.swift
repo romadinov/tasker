@@ -191,6 +191,8 @@ struct MetadataLine: View {
 struct InlineTitleEditor: View {
     @Environment(AppModel.self) private var model
     let task: TaskItem
+    /// Return starts the next action below (lists); off on the board, where it wouldn't be on the board.
+    var continueOnReturn = true
     @State private var text = ""
     @State private var hadFocus = false
     @FocusState private var focused: Bool
@@ -200,9 +202,10 @@ struct InlineTitleEditor: View {
     var body: some View {
         #if os(macOS)
         InlineTextField(text: $text, placeholder: placeholder, bold: task.isProject,
-                        onSubmit: { model.commitInline(task.id, title: text, continueWithNew: !text.trimmingCharacters(in: .whitespaces).isEmpty) },
+                        onSubmit: { model.commitInline(task.id, title: text, continueWithNew: continueOnReturn && !text.trimmingCharacters(in: .whitespaces).isEmpty) },
                         onCancel: { model.commitInline(task.id, title: text, continueWithNew: false) },
-                        onEndEditing: { if model.editingID == task.id { model.commitInline(task.id, title: text, continueWithNew: false) } })
+                        onEndEditing: { if model.editingID == task.id { model.commitInline(task.id, title: text, continueWithNew: false) } },
+                        focusKey: "title:" + task.id)
             .onAppear { text = task.title }
         #else
         TextField(placeholder, text: $text)
@@ -212,7 +215,7 @@ struct InlineTitleEditor: View {
                 text = task.title
                 DispatchQueue.main.async { focused = true }
             }
-            .onSubmit { model.commitInline(task.id, title: text, continueWithNew: !text.trimmingCharacters(in: .whitespaces).isEmpty) }
+            .onSubmit { model.commitInline(task.id, title: text, continueWithNew: continueOnReturn && !text.trimmingCharacters(in: .whitespaces).isEmpty) }
             .onChange(of: focused) { _, isFocused in
                 if isFocused { hadFocus = true }
                 if !isFocused && hadFocus && model.editingID == task.id { model.commitInline(task.id, title: text, continueWithNew: false) }
@@ -226,13 +229,16 @@ struct SelectedFieldsLine: View {
     @Environment(AppModel.self) private var model
     let task: TaskItem
     let info: TaskInfo
+    /// Wrap onto several lines (narrow board cards) instead of one row.
+    var wrap = false
 
     var body: some View {
         let s = model.snapshot
         let due = task.dueDate
         let dueColor: Color = due.map { $0 < s.now ? Palette.overdue : ($0 < s.dueSoon ? Palette.dueSoon : .secondary) } ?? .secondary
         let focus = model.inlineField?.id == task.id ? model.inlineField?.field : nil
-        HStack(spacing: 6) {
+        let layout = wrap ? AnyLayout(FlowRow(spacing: 6)) : AnyLayout(HStackLayout(spacing: 6))
+        layout {
             InlineProjectField(task: task)
             if focus == .tags {
                 InlineTagsField(task: task)

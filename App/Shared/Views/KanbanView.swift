@@ -88,7 +88,11 @@ private struct KanbanColumn: View {
                 LazyVStack(spacing: 8) {
                     ForEach(cards) { t in
                         KanbanCard(task: t, stage: stage)
-                            .draggable(t.id) { KanbanCard(task: t, stage: stage).frame(width: 250).environment(model) }
+                            // A static preview: a full card here would create a second (focus-stealing) title editor.
+                            .draggable(t.id) {
+                                Text(t.title.isEmpty ? "Untitled" : t.title).lineLimit(3).padding(10).frame(width: 250, alignment: .leading)
+                                    .background(RoundedRectangle(cornerRadius: 10).fill(.background))
+                            }
                             .dropDestination(for: String.self) { ids, _ in
                                 drop(ids, before: t.id)
                             }
@@ -135,15 +139,25 @@ private struct KanbanCard: View {
                         .foregroundStyle(task.isCompleted ? Color.secondary : (i?.effectiveFlagged == true ? Palette.flag : Color.secondary))
                 }
                 .buttonStyle(.plain)
-                Text(task.title.isEmpty ? "Untitled" : task.title)
-                    .strikethrough(task.isCompleted, color: .secondary)
-                    .foregroundStyle(task.isCompleted ? .secondary : .primary)
-                    .lineLimit(4)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                Group {
+                    if model.editingID == task.id {
+                        InlineTitleEditor(task: task, continueOnReturn: false)
+                    } else {
+                        Text(task.title.isEmpty ? "Untitled" : task.title)
+                            .strikethrough(task.isCompleted, color: .secondary)
+                            .foregroundStyle(task.isCompleted ? .secondary : .primary)
+                            .lineLimit(4)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
                 if i?.effectiveFlagged == true { Image(systemName: "flag.fill").foregroundStyle(Palette.flag).imageScale(.small) }
             }
             let tags = task.tagIDs.compactMap { s.tags[$0]?.name }
-            if i?.projectID != nil || !tags.isEmpty || task.dueDate != nil {
+            if selected && model.selection.count == 1, let i {
+                // Same editing as a selected row in the lists: Project, Tags, Defer, Due, note.
+                SelectedFieldsLine(task: task, info: i, wrap: true)
+                InlineNote(task: task)
+            } else if i?.projectID != nil || !tags.isEmpty || task.dueDate != nil {
                 FlowRow {
                     if let p = i?.projectID, let pt = s.tasks[p] { Badge(text: pt.title, systemImage: "circle.grid.2x2", color: Palette.project) }
                     ForEach(tags, id: \.self) { Badge(text: $0, color: Palette.tag) }
@@ -160,8 +174,9 @@ private struct KanbanCard: View {
         .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(selected ? Color.accentColor : Color.secondary.opacity(0.18), lineWidth: selected ? 2 : 1))
         .shadow(color: .black.opacity(0.05), radius: 2, y: 1)
         .contentShape(Rectangle())
-        .onTapGesture(count: 2) { model.selection = [task.id]; model.showInspector = true }
-        .onTapGesture { model.selection = [task.id] }
+        // Like the lists: click selects (and opens the fields), double-click edits the title.
+        .onTapGesture(count: 2) { model.beginEditing(task.id) }
+        .simultaneousGesture(TapGesture().onEnded { if model.selection != [task.id] { model.inlineField = nil; model.selection = [task.id] } })
         .contextMenu {
             StageMenu(ids: [task.id])
             Divider()
@@ -190,30 +205,6 @@ struct StageMenu: View {
             if s.stages.isEmpty {
                 Button("Set Up Board") { model.perform("Set Up Board") { $0.addDefaultStages() } }
             }
-        }
-    }
-}
-
-/// Wrapping row of small badges.
-private struct FlowRow: Layout {
-    var spacing: CGFloat = 4
-    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
-        let width = proposal.width ?? 250
-        var x: CGFloat = 0, y: CGFloat = 0, row: CGFloat = 0
-        for v in subviews {
-            let s = v.sizeThatFits(.unspecified)
-            if x > 0 && x + s.width > width { x = 0; y += row + spacing; row = 0 }
-            x += s.width + spacing; row = max(row, s.height)
-        }
-        return CGSize(width: width, height: y + row)
-    }
-    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
-        var x = bounds.minX, y = bounds.minY, row: CGFloat = 0
-        for v in subviews {
-            let s = v.sizeThatFits(.unspecified)
-            if x > bounds.minX && x + s.width > bounds.maxX { x = bounds.minX; y += row + spacing; row = 0 }
-            v.place(at: CGPoint(x: x, y: y), proposal: ProposedViewSize(s))
-            x += s.width + spacing; row = max(row, s.height)
         }
     }
 }
