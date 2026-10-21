@@ -301,11 +301,7 @@ struct TaskInspector: View {
                 IconSegments(options: [(ProjectStatus.active, "play.circle", "Active"), (.onHold, "pause.circle", "On Hold"),
                                        (.done, "checkmark.circle", "Completed"), (.dropped, "minus.circle", "Dropped")],
                              selection: t.status) { v in
-                    model.perform("Change Status") { tx in
-                        tx.setTask(t.id, F.status, .string(v.rawValue))
-                        tx.setTask(t.id, F.completed, v == .done ? .date(Date()) : .null)
-                        tx.setTask(t.id, F.dropped, v == .dropped ? .date(Date()) : .null)
-                    }
+                    model.perform("Change Status") { $0.setProjectStatus(t.id, v) }
                 }
                 flagToggle(t)
             }

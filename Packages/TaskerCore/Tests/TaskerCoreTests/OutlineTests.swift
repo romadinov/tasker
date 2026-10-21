@@ -115,3 +115,47 @@ import Testing
         #expect(snap.inboxIDs == ["I0", "I1"])
     }
 }
+
+@Suite struct CompleteCascadeTests {
+    @Test func completingParentCompletesOpenChildrenAndUndoReopensThem() throws {
+        let s = try tempStore()
+        let earlier = Date(timeIntervalSince1970: 1_700_000_000)
+        s.transact { tx in
+            var p = NewTask(title: "P"); p.isProject = true
+            tx.createTask(p, id: "P")
+            tx.createTask(NewTask(title: "G", parent: "P"), id: "G")
+            tx.createTask(NewTask(title: "G1", parent: "G"), id: "G1")
+            tx.createTask(NewTask(title: "A", parent: "P"), id: "A")
+            tx.createTask(NewTask(title: "Old", parent: "P"), id: "Old")
+        }
+        s.transact { $0.complete("Old", at: earlier) }
+        s.transact { $0.complete("G", at: earlier.addingTimeInterval(60)) }
+        #expect(s.snapshot().tasks["G1"]?.isCompleted == true)
+        #expect(s.snapshot().tasks["A"]?.isCompleted == false)
+        s.transact { $0.complete("P", at: earlier.addingTimeInterval(120)) }
+        let snap = s.snapshot()
+        for id in ["P", "G", "G1", "A", "Old"] { #expect(snap.tasks[id]?.isCompleted == true, "\(id)") }
+        #expect(snap.tasks["Old"]?.completedAt == earlier)
+        s.transact { $0.uncomplete("P") }
+        let back = s.snapshot()
+        #expect(back.tasks["A"]?.isCompleted == false)
+        #expect(back.tasks["Old"]?.isCompleted == true)   // finished on its own earlier
+        #expect(back.tasks["G"]?.isCompleted == true)     // completed before the project
+    }
+}
+
+@Suite struct ProjectStatusTests {
+    @Test func completedStatusCascadesAndActiveReopens() throws {
+        let s = try tempStore()
+        s.transact { tx in
+            var p = NewTask(title: "P"); p.isProject = true
+            tx.createTask(p, id: "P")
+            tx.createTask(NewTask(title: "A", parent: "P"), id: "A")
+        }
+        s.transact { $0.setProjectStatus("P", .done) }
+        #expect(s.snapshot().tasks["A"]?.isCompleted == true)
+        s.transact { $0.setProjectStatus("P", .active) }
+        #expect(s.snapshot().tasks["A"]?.isCompleted == false)
+        #expect(s.snapshot().tasks["P"]?.status == .active)
+    }
+}

@@ -258,11 +258,7 @@ struct ProjectSection: View {
         let id = project.id
         Section("Project") {
             Picker("Status", selection: Binding(get: { project.status }, set: { v in
-                model.perform("Change Status") { tx in
-                    tx.setTask(id, F.status, .string(v.rawValue))
-                    tx.setTask(id, F.completed, v == .done ? .date(Date()) : .null)
-                    tx.setTask(id, F.dropped, v == .dropped ? .date(Date()) : .null)
-                }
+                model.perform("Change Status") { $0.setProjectStatus(id, v) }
             })) { ForEach(ProjectStatus.allCases, id: \.self) { Text($0.label).tag($0) } }
             Picker("Type", selection: Binding(get: { project.singleActions ? 2 : (project.sequential ? 1 : 0) }, set: { v in
                 model.perform("Change Type") { tx in

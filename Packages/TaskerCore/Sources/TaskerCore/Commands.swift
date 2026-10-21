@@ -137,6 +137,7 @@ extension Tx {
         if t.isProject {
             set(.task, id, F.status, "done")
             set(.task, id, F.completed, .date(when))
+            completeDescendants(of: id, at: when)
             return
         }
         if let rule = t.repeatRule {
@@ -144,6 +145,7 @@ extension Tx {
             return
         }
         set(.task, id, F.completed, .date(when))
+        completeDescendants(of: id, at: when)
         // A group that completes with its children completes when its last child does.
         if let parent = base.info[id]?.parentID, let p = base.tasks[parent], !p.isProject, p.completesWithChildren {
             let others = (base.children[parent] ?? []).filter { $0 != id && base.info[$0]?.isRemaining == true }
@@ -155,6 +157,28 @@ extension Tx {
         guard let t = base.tasks[id] else { return }
         if t.isProject { set(.task, id, F.status, "active") }
         set(.task, id, F.completed, .null)
+        // Reopen what was completed together with it (same moment), not what was finished earlier.
+        if let when = t.completedAt {
+            for d in base.descendants(of: id) where base.tasks[d]?.completedAt == when { set(.task, d, F.completed, .null) }
+        }
+    }
+
+    /// Project status from the inspector: Completed completes its actions too; leaving Completed reopens
+    /// the ones completed with it.
+    public mutating func setProjectStatus(_ id: String, _ status: ProjectStatus) {
+        guard let t = base.tasks[id], t.isProject, t.status != status else { return }
+        if status == .done { complete(id); set(.task, id, F.dropped, .null); return }
+        if t.status == .done { uncomplete(id) } else { set(.task, id, F.completed, .null) }
+        set(.task, id, F.status, .string(status.rawValue))
+        set(.task, id, F.dropped, status == .dropped ? .date(now) : .null)
+    }
+
+    /// Completing a project or group completes everything still open under it, at the same moment.
+    mutating func completeDescendants(of id: String, at when: Date) {
+        for d in base.descendants(of: id) {
+            guard let c = base.tasks[d], !c.isCompleted, !c.isDropped else { continue }
+            set(.task, d, F.completed, .date(when))
+        }
     }
 
     public mutating func drop(_ id: String) {
