@@ -378,7 +378,7 @@ struct ItemContextMenu: View {
             Menu("Organize") { OrganizeMenuItems(ids: ids) }
             if tasks.allSatisfy({ !$0.isProject }) {
                 if ids.count == 1 {
-                    Button("Convert to Project") { model.perform("Convert to Project") { $0.convertToProject(ids[0], folder: nil) } }
+                    Button("Convert to Project") { model.convertToProject(ids[0]) }
                 }
             }
             if tasks.allSatisfy(\.isProject) {

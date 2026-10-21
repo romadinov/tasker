@@ -498,9 +498,37 @@ final class AppModel {
 
 
     func indent(_ ids: [String]) {
+        // What's visibly above each row at the same depth. Usually that's its real previous sibling and the
+        // outline indent does the job; when it isn't (e.g. a project converted here and kept in place),
+        // indent into what you see.
+        let rows = shownLayout.flatMap(\.rows)
+        let chosen = Set(ids)
+        var visual: [String: String] = [:]
+        for id in ids where snapshot.tasks[id]?.isProject == false {
+            guard let i = rows.firstIndex(where: { $0.id == id }) else { continue }
+            let d = rows[i].depth
+            guard let prev = rows[..<i].last(where: { $0.depth <= d && !chosen.contains($0.id) }), prev.depth == d,
+                  snapshot.tasks[prev.id] != nil else { continue }
+            let parentKey = snapshot.info[id]?.parentID ?? Snapshot.inboxKey
+            let sibs = (snapshot.children[parentKey] ?? []).filter { !chosen.contains($0) || $0 == id }
+            let realPrev = sibs.firstIndex(of: id).flatMap { $0 > 0 ? sibs[$0 - 1] : nil }
+            if realPrev != prev.id { visual[id] = prev.id }
+        }
         var parents: [String] = []
-        perform("Indent") { tx in parents = tx.indent(ids) }
+        perform("Indent") { tx in
+            parents = tx.indent(ids.filter { visual[$0] == nil })
+            for (id, target) in visual { tx.move(id, to: target, placement: .end); parents.append(target) }
+        }
         expanded.formUnion(parents)
+    }
+
+    /// Convert to Project: it stays where it is in this view (expanded) so you can add actions to it right
+    /// there; it goes into the folder of the project it was in (top level from the Inbox).
+    func convertToProject(_ id: String) {
+        let folder = snapshot.info[id]?.projectID.flatMap { snapshot.projectInfo[$0]?.folderID }
+        pinInPlace([id])
+        expanded.insert(id)
+        perform("Convert to Project") { $0.convertToProject(id, folder: folder) }
     }
 
     func outdent(_ ids: [String]) { perform("Outdent") { tx in tx.outdent(ids) } }
@@ -985,10 +1013,33 @@ final class AppModel {
         }
         if !keptRows.isEmpty {
             keptRows = keptRows.filter { snapshot.tasks[$0.key] != nil } // deleted items do go away
-            if !pinnedRows.isEmpty {
-                for i in result.indices { result[i].rows.removeAll { pinnedRows.contains($0.id) && keptRows[$0.id] != nil } }
+            // A kept row that is (now) a project — e.g. converted here — shows its actions underneath,
+            // so you can add to it in place (Return, Add Inside, Indent) like to a group.
+            var childRows: [String: [OutlineRow]] = [:]
+            var childIDs = Set<String>()
+            for (p, k) in keptRows where snapshot.tasks[p]?.isProject == true && expanded.contains(p) {
+                var rows: [OutlineRow] = []
+                outline(snapshot.children[p] ?? [], depth: k.row.depth + 1, filter: .remaining, into: &rows)
+                childRows[p] = rows
+                childIDs.formUnion(rows.map(\.id))
+            }
+            if !pinnedRows.isEmpty || !childIDs.isEmpty {
+                for i in result.indices {
+                    // Pinned rows (with their subtree) leave their new place; children show under the kept project.
+                    var out: [OutlineRow] = []
+                    var skipDepth: Int?
+                    for r in result[i].rows {
+                        if let d = skipDepth, r.depth > d { continue }
+                        skipDepth = nil
+                        if pinnedRows.contains(r.id) && keptRows[r.id] != nil { skipDepth = r.depth; continue }
+                        if childIDs.contains(r.id) { continue }
+                        out.append(r)
+                    }
+                    result[i].rows = out
+                }
             }
             for k in keptRows.values.sorted(by: { $0.seq < $1.seq }) {
+                if childIDs.contains(k.row.id) { continue }
                 if result.contains(where: { $0.rows.contains { $0.id == k.row.id } }) { continue }
                 // Its parent row was collapsed or is gone: nothing to show it under.
                 if let p = k.parent, !result.contains(where: { $0.rows.contains { $0.id == p && $0.expanded } }) { continue }
@@ -999,16 +1050,24 @@ final class AppModel {
                     si = at
                 }
                 var rows = result[si!].rows
+                var row = k.row
+                let kids = childRows[k.row.id] ?? []
+                if snapshot.tasks[k.row.id]?.isProject == true {
+                    row = OutlineRow(id: row.id, kind: .project, depth: row.depth, hasChildren: !(snapshot.children[row.id] ?? []).isEmpty,
+                                     expanded: expanded.contains(row.id), showContext: row.showContext, showProject: row.showProject)
+                }
+                let at: Int
                 if let a = k.anchor, let ai = rows.firstIndex(where: { $0.id == a }) {
                     var j = ai + 1
                     // Above it was a sibling (or its subtree): go past that subtree. A parent: right below it.
                     if k.row.depth <= rows[ai].depth { while j < rows.count, rows[j].depth > rows[ai].depth { j += 1 } }
-                    rows.insert(k.row, at: j)
+                    at = j
                 } else if k.anchor == nil {
-                    rows.insert(k.row, at: 0)
+                    at = 0
                 } else {
-                    rows.insert(k.row, at: min(k.index, rows.count))
+                    at = min(k.index, rows.count)
                 }
+                rows.insert(contentsOf: [row] + kids, at: at)
                 result[si!].rows = rows
             }
         }
