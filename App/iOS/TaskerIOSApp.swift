@@ -42,7 +42,7 @@ final class IOSAppDelegate: NSObject, UIApplicationDelegate {
     static let refreshID = "com.romadinov.tasker.refresh"
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
-        MainActor.assumeIsolated { AppModel.shared.start() }
+        MainActor.assumeIsolated { AppModel.shared.start(); _ = PomodoroTimer.shared }
         application.registerForRemoteNotifications()
         Task { await Self.scheduleRefresh() }
         return true

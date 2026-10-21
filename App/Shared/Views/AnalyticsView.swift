@@ -32,6 +32,7 @@ struct AnalyticsView: View {
                     Kpi(title: "Overdue", value: "\(a.overdue)", detail: "\(a.dueThisWeek) due in 7 days", tint: a.overdue > 0 ? .red : .secondary)
                     Kpi(title: "Median time to done", value: Analytics.duration(a.medianLeadDays), detail: "added → completed")
                     Kpi(title: "Streak", value: "\(a.streak) d", detail: "days in a row with a completion")
+                    Kpi(title: "Focus this week", value: Fmt.estimate(a.focusThisWeek), detail: "\(a.pomodorosThisWeek) pomodoros 🍅")
                     Kpi(title: "Projects", value: "\(a.activeProjects)", detail: "\(a.stalledProjects) stalled · \(a.reviewDue) to review",
                         tint: a.stalledProjects > 0 ? .orange : .secondary)
                 }
@@ -75,6 +76,18 @@ struct AnalyticsView: View {
                             BarMark(x: .value("Time", b.label), y: .value("Actions", b.count)).foregroundStyle(.purple.opacity(0.7))
                         }
                         .frame(height: 160)
+                    }
+                }
+
+                if a.focusInRange > 0 {
+                    HStack(alignment: .top, spacing: 16) {
+                        Card("Focus time per \(range.bucketName) (pomodoros)") {
+                            Chart(a.focus) { b in
+                                BarMark(x: .value("Period", b.start, unit: range.unit), y: .value("Minutes", b.completed)).foregroundStyle(.red.opacity(0.7))
+                            }
+                            .frame(height: 150)
+                        }
+                        Card("Focus by project") { RankList(rows: a.focusByProject, tint: .red) }
                     }
                 }
 
@@ -154,6 +167,10 @@ struct Analytics {
     var topTags: [Labeled] = []
     var upcoming: [Day] = []
     var stalled: [TaskItem] = []
+    // Pomodoro focus (minutes)
+    var focusThisWeek = 0, pomodorosThisWeek = 0, focusInRange = 0
+    var focus: [Bucket] = []          // `completed` holds minutes
+    var focusByProject: [Labeled] = []
     var backlogDomain: ClosedRange<Int> {
         let v = backlog.map(\.open)
         guard let lo = v.min(), let hi = v.max() else { return 0...1 }
@@ -210,6 +227,20 @@ struct Analytics {
             }
         }
         flow = buckets.values.sorted { $0.start < $1.start }
+
+        var focusBuckets = Dictionary(uniqueKeysWithValues: buckets.keys.map { ($0, Bucket(start: $0)) })
+        var focusProject: [String: Int] = [:]
+        for t in actions {
+            for f in t.focusSessions {
+                if f.at >= weekStart { focusThisWeek += f.minutes; pomodorosThisWeek += 1 }
+                guard f.at >= from else { continue }
+                focusInRange += f.minutes
+                if let b = bucket(f.at) { focusBuckets[b]?.completed += f.minutes }
+                if let p = s.info[t.id]?.projectID { focusProject[p, default: 0] += f.minutes }
+            }
+        }
+        focus = focusBuckets.values.sorted { $0.start < $1.start }
+        focusByProject = focusProject.sorted { $0.value > $1.value }.prefix(8).map { Labeled(label: s.tasks[$0.key]?.title ?? "?", count: $0.value) }
         perDay = Double(completedInRange) / Double(range.days)
 
         // When each action stopped being open. Items closed only by their project (completed or dropped

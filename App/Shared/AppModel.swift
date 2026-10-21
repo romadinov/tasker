@@ -315,6 +315,19 @@ final class AppModel {
         else if let g = snapshot.tags[id], g.name != v { perform("Rename Tag") { $0.set(.tag, id, F.name, .string(v)) } }
     }
 
+    /// Shows an action where it lives (its project, or the Inbox) and selects it.
+    func reveal(_ id: String) {
+        guard let t = snapshot.tasks[id] else { return }
+        if let p = snapshot.info[id]?.projectID {
+            sidebar = .projects
+            projectFocus = [p]
+            expanded.formUnion(snapshot.ancestors(of: id))
+        } else if snapshot.info[id]?.isInbox == true || t.position.parent == nil {
+            sidebar = .inbox
+        }
+        DispatchQueue.main.async { self.selection = [id]; self.scrollToRow = id }
+    }
+
     // MARK: Board (Kanban)
 
     func moveToStage(_ ids: [String], stage: String?, before: String?) {

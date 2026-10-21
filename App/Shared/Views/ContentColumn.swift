@@ -18,6 +18,11 @@ struct ContentColumn: View {
     }
 
     var body: some View {
+        // The running pomodoro sits above every view.
+        mainBody.safeAreaInset(edge: .top, spacing: 0) { PomodoroBar() }
+    }
+
+    @ViewBuilder var mainBody: some View {
         if model.sidebar == .kanban && model.searchText.isEmpty {
             KanbanView()
                 .searchable(text: Bindable(model).searchText, placement: .toolbar, prompt: "Search everything")
@@ -366,6 +371,9 @@ struct ItemContextMenu: View {
             Divider()
             Button("Move To…") { model.moveTargetFor = ids }
             if tasks.allSatisfy({ !$0.isProject }) { StageMenu(ids: ids) }
+            if ids.count == 1, let t = tasks.first, !t.isProject, !t.isCompleted {
+                Button { PomodoroTimer.shared.start(t.id) } label: { Label("Start Pomodoro", systemImage: "timer") }
+            }
             Menu("Organize") { OrganizeMenuItems(ids: ids) }
             if tasks.allSatisfy({ !$0.isProject }) {
                 if ids.count == 1 {

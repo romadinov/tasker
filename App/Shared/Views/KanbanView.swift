@@ -161,6 +161,7 @@ private struct KanbanCard: View {
                 FlowRow {
                     if let p = i?.projectID, let pt = s.tasks[p] { Badge(text: pt.title, systemImage: "circle.grid.2x2", color: Palette.project) }
                     ForEach(tags, id: \.self) { Badge(text: $0, color: Palette.tag) }
+                    PomodoroBadge(task: task)
                     if let d = task.dueDate {
                         Badge(text: Fmt.relative(d), systemImage: "calendar", color: d < s.now ? Palette.overdue : (d < s.dueSoon ? Palette.dueSoon : .secondary),
                               filled: d < s.dueSoon)

@@ -21,6 +21,14 @@ struct TaskerMacApp: App {
             MacSettingsView()
                 .environment(AppModel.shared)
         }
+
+        // Pomodoro in the menu bar while one is active: visible whatever app is in front.
+        MenuBarExtra(isInserted: Binding(get: { PomodoroTimer.shared.isActive }, set: { _ in })) {
+            PomodoroMenu().environment(AppModel.shared)
+        } label: {
+            let t = PomodoroTimer.shared
+            Text(t.phase == .ready ? "🍅 ready" : "🍅 \(t.display)" + (t.isPaused ? " ⏸" : ""))
+        }
     }
 }
 
@@ -31,6 +39,7 @@ final class MacAppDelegate: NSObject, NSApplicationDelegate {
         MainActor.assumeIsolated {
             AppModel.shared.start()
             HotKeys.apply()
+            _ = PomodoroTimer.shared // resumes a running pomodoro, logs one that ended while quit
             #if DEBUG
             DebugSnapshots.runIfRequested()
             #endif
@@ -146,6 +155,9 @@ struct TaskerCommands: Commands {
             // Return (handled by the list) adds a new item below the selection; this edits the title (also double-click).
             Button("Edit Title") { if let id = sel.first { model.beginEditing(id) } }.disabled(sel.count != 1 || model.editingID != nil)
             Divider()
+            Button("Start Pomodoro") { if let id = sel.first { PomodoroTimer.shared.start(id) } }
+                .keyboardShortcut("p", modifiers: [.command, .control])
+                .disabled(sel.count != 1 || model.snapshot.tasks[sel.first ?? ""]?.isProject != false)
             Button("Move To…") { model.moveTargetFor = sel }.keyboardShortcut("m", modifiers: [.command, .shift]).disabled(sel.isEmpty)
             Divider()
             Button("Defer to Tomorrow") { model.setDate(sel, F.deferDate, QuickEntryParser(snapshot: model.snapshot).date("tomorrow", hour: 0)) }
@@ -184,5 +196,20 @@ struct TaskerCommands: Commands {
             Button("Sync Status…") { model.showSyncStatus = true }
             Button("Sync Now") { Task { await model.sync?.syncNow() } }.keyboardShortcut("s", modifiers: [.command, .option])
         }
+    }
+}
+
+/// Menu-bar dropdown for the running pomodoro.
+struct PomodoroMenu: View {
+    @Environment(AppModel.self) private var model
+    var body: some View {
+        let t = PomodoroTimer.shared
+        let title = t.taskID.flatMap { model.snapshot.tasks[$0]?.title } ?? ""
+        Text(t.phase == .ready ? "Break over" : "\(t.phaseLabel) — \(t.display) left")
+        Button(title.count > 50 ? String(title.prefix(50)) + "…" : title) {
+            if let id = t.taskID { NSApp.activate(); model.reveal(id) }
+        }
+        Divider()
+        PomodoroControls()
     }
 }

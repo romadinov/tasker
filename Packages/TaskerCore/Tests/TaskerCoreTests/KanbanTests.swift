@@ -49,3 +49,21 @@ import Testing
         #expect(s.snapshot().hasStages)
     }
 }
+
+@Suite struct PomodoroTests {
+    @Test func sessionsFromTwoDevicesBothCount() throws {
+        let a = try tempStore(), b = try tempStore()
+        a.transact { $0.createTask(NewTask(title: "Write"), id: "T") }
+        try b.ingest(allOps(a))
+        let t0 = Date(timeIntervalSince1970: 1_800_000_000)
+        a.transact { $0.logPomodoro("T", at: t0, minutes: 25) }
+        b.transact { $0.logPomodoro("T", at: t0.addingTimeInterval(1800), minutes: 50) }
+        try a.ingest(allOps(b)); try b.ingest(allOps(a))
+        for s in [a, b] {
+            let t = try #require(s.snapshot().tasks["T"])
+            #expect(t.pomodoroCount == 2)
+            #expect(t.focusMinutes == 75)
+            #expect(t.focusSessions.first?.minutes == 25)
+        }
+    }
+}

@@ -37,6 +37,9 @@ public enum F {
     public static let stage = "stage"
     public static let stageOrder = "stageOrder"
     public static let tagPrefix = "tag:"
+    /// One finished pomodoro: "pomo:<id>" → {"at": date, "min": minutes}. One register per session,
+    /// so sessions logged on two devices both survive.
+    public static let pomodoroPrefix = "pomo:"
     public static func tag(_ id: String) -> String { tagPrefix + id }
 }
 
@@ -115,6 +118,10 @@ public struct TaskItem: Identifiable, Hashable, Sendable {
     // Kanban
     public var stageID: String?
     public var stageOrder: String = "V"
+    /// Finished pomodoros on this action (newest last).
+    public var focusSessions: [FocusSession] = []
+    public var pomodoroCount: Int { focusSessions.count }
+    public var focusMinutes: Int { focusSessions.reduce(0) { $0 + $1.minutes } }
 
     public var isProject: Bool { kind == .project }
     public var isCompleted: Bool { isProject ? status == .done || completedAt != nil : completedAt != nil }
@@ -154,12 +161,16 @@ public struct TaskItem: Identifiable, Hashable, Sendable {
             case F.stage: stageID = v.string
             case F.stageOrder: stageOrder = v.string ?? "V"
             default:
+                if field.hasPrefix(F.pomodoroPrefix), let at = v["at"]?.date {
+                    focusSessions.append(FocusSession(at: at, minutes: v["min"]?.int ?? 25))
+                }
                 if field.hasPrefix(F.tagPrefix), v.bool == true {
                     tags.append(String(field.dropFirst(F.tagPrefix.count)))
                 }
             }
         }
         tagIDs = tags.sorted()
+        focusSessions.sort { $0.at < $1.at }
         modifiedAt = maxStamp.date
         if createdAt == nil, let first = fields.values.map(\.hlc).min() { createdAt = first.date }
     }
@@ -250,5 +261,19 @@ public struct Perspective: Identifiable, Hashable, Sendable {
         groupBy = fields[F.groupBy]?.value.string.flatMap(GroupBy.init(rawValue:)) ?? .project
         sortBy = fields[F.sortBy]?.value.string.flatMap(SortBy.init(rawValue:)) ?? .manual
         deleted = fields[F.deleted]?.value.bool ?? false
+    }
+}
+
+public struct FocusSession: Hashable, Sendable {
+    public var at: Date
+    public var minutes: Int
+    public init(at: Date, minutes: Int) { self.at = at; self.minutes = minutes }
+}
+
+extension Tx {
+    /// Records a finished pomodoro on an action.
+    public mutating func logPomodoro(_ id: String, at: Date, minutes: Int) {
+        guard base.tasks[id] != nil else { return }
+        set(.task, id, F.pomodoroPrefix + IDs.make(), .object(["at": .date(at), "min": .number(Double(minutes))]))
     }
 }

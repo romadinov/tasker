@@ -172,6 +172,7 @@ struct MetadataLine: View {
         } else if task.isProject {
             for name in s.tagNames(task.tagIDs) { out.append(AnyView(Badge(text: name, color: Palette.tag))) }
         }
+        if task.pomodoroCount > 0 || PomodoroTimer.shared.taskID == task.id { out.append(AnyView(PomodoroBadge(task: task))) }
         if let sid = task.stageID, let st = s.stages.first(where: { $0.id == sid }) {
             out.append(AnyView(Badge(text: st.name, systemImage: "rectangle.split.3x1", color: KanbanView.color(st.color))))
         }

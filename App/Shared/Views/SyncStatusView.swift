@@ -109,6 +109,7 @@ struct SettingsView: View {
                 Button("Sync status…") { model.showSyncStatus = true }
             }
             CalendarSettingsSection()
+            PomodoroSettingsSection()
             Section("Dates") {
                 Stepper("Due soon: \(model.snapshot.setting("dueSoonDays")?.int ?? 2) days",
                         value: Binding(get: { model.snapshot.setting("dueSoonDays")?.int ?? 2 },
