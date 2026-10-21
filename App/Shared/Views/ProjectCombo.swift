@@ -155,6 +155,22 @@ struct InlineTagsField: View {
     }
 
     var body: some View {
+        // The item's tags, each with × to remove it (Backspace in the empty field removes the last one).
+        let s = model.snapshot
+        let ids = (s.tasks[task.id]?.tagIDs ?? task.tagIDs).filter { s.tags[$0] != nil }
+        HStack(spacing: 4) {
+            ForEach(ids, id: \.self) { id in
+                Button { remove(id) } label: {
+                    Badge(text: s.tags[id]!.name, systemImage: "xmark", color: Palette.tag)
+                }
+                .buttonStyle(.plain)
+                .help("Remove tag")
+            }
+            field
+        }
+    }
+
+    @ViewBuilder var field: some View {
         #if os(macOS)
         ComboTextField(state: state, placeholder: "Add tag", onCommit: { item, viaTab in
             if let item { add(item) }
@@ -162,7 +178,9 @@ struct InlineTagsField: View {
             if viaTab { model.inlineField = .init(id: task.id, field: .flag); return false }
             if item == nil { model.editNextTask(after: task.id); return false }
             return true // Return with a tag picked: stay for another tag
-        }, onCancel: { model.inlineField = nil })
+        }, onCancel: { model.inlineField = nil }, onDeleteEmpty: {
+            if let last = (model.snapshot.tasks[task.id]?.tagIDs ?? []).last(where: { model.snapshot.tags[$0] != nil }) { remove(last) }
+        })
         .frame(minWidth: 140, maxWidth: 220)
         #else
         TextField("Add tag", text: Bindable(state).query)
@@ -178,6 +196,12 @@ struct InlineTagsField: View {
                     .presentationCompactAdaptation(.popover)
             }
         #endif
+    }
+
+    func remove(_ id: String) {
+        model.perform("Remove Tag") { $0.setTag(task.id, id, false) }
+        state.excluded.remove(id)
+        state.refresh()
     }
 
     func add(_ item: ComboItem) {
@@ -258,6 +282,8 @@ struct ComboTextField: NSViewRepresentable {
     /// (picked item or nil, pressed Tab) → true to keep the field open for another entry.
     let onCommit: (ComboItem?, Bool) -> Bool
     let onCancel: () -> Void
+    /// Backspace in the empty field (Tags: remove the last tag).
+    var onDeleteEmpty: (() -> Void)? = nil
 
     func makeNSView(context: Context) -> AutoFocusTextField {
         let f = AutoFocusTextField()
@@ -390,6 +416,8 @@ struct ComboTextField: NSViewRepresentable {
                 return true
             case #selector(NSResponder.cancelOperation(_:)):
                 done = true; hidePanel(); parent.onCancel(); return true
+            case #selector(NSResponder.deleteBackward(_:)) where (field?.stringValue.isEmpty ?? false) && parent.onDeleteEmpty != nil:
+                parent.onDeleteEmpty?(); return true
             default: return false
             }
         }

@@ -232,7 +232,6 @@ struct SelectedFieldsLine: View {
         HStack(spacing: 6) {
             InlineProjectField(task: task)
             if focus == .tags {
-                TagChips(task: task, showAdd: false)
                 InlineTagsField(task: task)
             } else {
                 Button { model.inlineField = .init(id: task.id, field: .tags) } label: {

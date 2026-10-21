@@ -205,6 +205,31 @@ enum DebugSnapshots {
                 }
             }
         }))
+        steps.append(("tags-backspace", {
+            model.inlineField = nil; model.editingID = nil
+            model.sidebar = .flagged
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                guard let id = model.sections().flatMap(\.rows).map(\.id).first(where: { (model.snapshot.tasks[$0]?.tagIDs.count ?? 0) >= 1 }) else {
+                    NSLog("TASKER-TAGDEL no tagged row"); return
+                }
+                let before = model.snapshot.tasks[id]!.tagIDs
+                model.selection = [id]
+                model.inlineField = .init(id: id, field: .tags)
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                    guard let win = NSApp.windows.first(where: { $0.frame.width > 600 }) else { return }
+                    for type in [NSEvent.EventType.keyDown, .keyUp] {
+                        if let e = NSEvent.keyEvent(with: type, location: .zero, modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime,
+                                                    windowNumber: win.windowNumber, context: nil, characters: "\u{7f}", charactersIgnoringModifiers: "\u{7f}",
+                                                    isARepeat: false, keyCode: 51) { NSApp.postEvent(e, atStart: false) }
+                    }
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                        let after = model.snapshot.tasks[id]?.tagIDs ?? []
+                        NSLog("TASKER-TAGDEL before=%d after=%d removedLast=%d fieldFocused=%d", before.count, after.count,
+                              after == Array(before.dropLast()) ? 1 : 0, win.firstResponder is NSTextView ? 1 : 0)
+                    }
+                }
+            }
+        }))
         steps.append(("return-adds-below", {
             model.inlineField = nil; model.editingID = nil
             model.sidebar = .inbox

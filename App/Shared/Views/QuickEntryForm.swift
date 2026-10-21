@@ -260,7 +260,12 @@ struct QuickEntryForm: View {
             }
             // Tags
             if editing == .tags {
-                ForEach(tagIDs, id: \.self) { id in Badge(text: s.tags[id]?.name ?? "", color: Palette.tag) }
+                ForEach(tagIDs, id: \.self) { id in
+                    Button { tagIDs.removeAll { $0 == id } } label: {
+                        Badge(text: s.tags[id]?.name ?? "", systemImage: "xmark", color: Palette.tag)
+                    }
+                    .buttonStyle(.plain).help("Remove tag")
+                }
                 comboField(kind: .tag, placeholder: "Add tag") { item, viaTab in
                     if let item {
                         let id = item.createName.map { model.createTag(named: $0) } ?? item.id
@@ -329,7 +334,8 @@ struct QuickEntryForm: View {
     @ViewBuilder
     func comboField(kind: ComboKind, placeholder: String, onCommit: @escaping (ComboItem?, Bool) -> Bool) -> some View {
         #if os(macOS)
-        QuickComboField(kind: kind, placeholder: placeholder, excluded: Set(tagIDs), onCommit: onCommit, onCancel: { editing = nil })
+        QuickComboField(kind: kind, placeholder: placeholder, excluded: Set(tagIDs), onCommit: onCommit, onCancel: { editing = nil },
+                        onDeleteEmpty: kind == .tag ? { if !tagIDs.isEmpty { tagIDs.removeLast() } } : nil)
         #else
         AutocompleteField(placeholder: placeholder, icon: kind == .project ? "circle.grid.2x2" : "tag",
                           suggestions: { kind == .project ? Lookup.projects(model.snapshot, $0) : Lookup.tags(model.snapshot, $0, excluding: Set(tagIDs)) },
@@ -399,10 +405,13 @@ struct QuickComboField: View {
     let excluded: Set<String>
     let onCommit: (ComboItem?, Bool) -> Bool
     let onCancel: () -> Void
+    var onDeleteEmpty: (() -> Void)? = nil
     @State private var state: ComboState
 
-    init(kind: ComboKind, placeholder: String, excluded: Set<String>, onCommit: @escaping (ComboItem?, Bool) -> Bool, onCancel: @escaping () -> Void) {
+    init(kind: ComboKind, placeholder: String, excluded: Set<String>, onCommit: @escaping (ComboItem?, Bool) -> Bool, onCancel: @escaping () -> Void,
+         onDeleteEmpty: (() -> Void)? = nil) {
         self.kind = kind; self.placeholder = placeholder; self.excluded = excluded; self.onCommit = onCommit; self.onCancel = onCancel
+        self.onDeleteEmpty = onDeleteEmpty
         let s = ComboState(kind: kind) { AppModel.shared.snapshot }
         s.excluded = excluded
         s.refresh()
@@ -414,7 +423,8 @@ struct QuickComboField: View {
             let keep = onCommit(item, tab)
             if keep, let item { state.excluded.insert(item.id) ; state.refresh() }
             return keep
-        }, onCancel: onCancel)
+        }, onCancel: onCancel, onDeleteEmpty: onDeleteEmpty)
+        .onChange(of: excluded) { _, ex in state.excluded = ex; state.refresh() }
     }
 }
 #endif
