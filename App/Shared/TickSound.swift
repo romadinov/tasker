@@ -5,7 +5,7 @@ import Foundation
 @MainActor
 final class TickSound {
     static let shared = TickSound()
-    /// Two seconds of audio (tick at 0 s, tock at 1 s) looped while focusing. One continuous sound,
+    /// A one-second kitchen-timer loop (four identical clicks) played while focusing. One continuous sound,
     /// unlike a sound per timer tick, keeps going when the app is in the background: on the Mac it isn't
     /// throttled by App Nap, on iOS the audio background mode keeps it playing.
     private var loop: AVAudioPlayer?
@@ -40,21 +40,30 @@ final class TickSound {
         }
     }
 
+    /// One second of a wind-up kitchen timer: four identical, dry mechanical clicks.
     private static func loopPlayer() -> AVAudioPlayer? {
-        let rate = 44_100.0, total = Int(rate * 2)
+        let rate = 44_100.0, total = Int(rate)
         var samples = [Int16](repeating: 0, count: total)
-        func click(at start: Int, frequency: Double) {
-            var seed: UInt32 = 12345
-            for i in 0..<Int(rate * 0.03) where start + i < total {
-                let t = Double(i) / rate
-                seed = seed &* 1_664_525 &+ 1_013_904_223
-                let noise = Double(Int32(bitPattern: seed)) / Double(Int32.max) * 0.25
-                let v = (sin(2 * .pi * frequency * t) + noise) * exp(-t * 180) * 0.35
-                samples[start + i] = Int16(max(-1, min(1, v)) * Double(Int16.max))
+        // The same click every time (fixed noise seed): a short noise burst through a ringing resonance.
+        var click = [Double](repeating: 0, count: Int(rate * 0.012))
+        var seed: UInt32 = 0x5EED
+        var y1 = 0.0, y2 = 0.0
+        let f = 3400.0, r = 0.985
+        let a1 = 2 * r * cos(2 * .pi * f / rate), a2 = -r * r
+        for i in click.indices {
+            seed = seed &* 1_664_525 &+ 1_013_904_223
+            let noise = i < 60 ? Double(Int32(bitPattern: seed)) / Double(Int32.max) : 0
+            let y = noise * 0.08 + a1 * y1 + a2 * y2
+            y2 = y1; y1 = y
+            click[i] = y * exp(-Double(i) / rate * 350)
+        }
+        let peak = click.map(abs).max() ?? 1
+        for k in 0..<4 {
+            let start = k * total / 4
+            for (i, v) in click.enumerated() where start + i < total {
+                samples[start + i] = Int16(v / peak * 0.3 * Double(Int16.max))
             }
         }
-        click(at: 0, frequency: 2600)
-        click(at: Int(rate), frequency: 2100)
         var data = Data()
         func put<T>(_ v: T) { withUnsafeBytes(of: v) { data.append(contentsOf: $0) } }
         let bytes = UInt32(total * 2)

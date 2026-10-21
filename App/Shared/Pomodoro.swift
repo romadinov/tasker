@@ -1,4 +1,7 @@
 import Foundation
+#if os(macOS)
+import AppKit
+#endif
 import Observation
 import TaskerCore
 import UserNotifications
@@ -61,6 +64,15 @@ final class PomodoroTimer {
 
     private init() {
         restore()
+        #if os(macOS)
+        // Closing the lid (sleep) or locking the screen pauses the timer; it stays paused on wake.
+        let pauseIt: @Sendable (Notification) -> Void = { _ in Task { @MainActor in PomodoroTimer.shared.pause(reason: "Mac slept") } }
+        NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.willSleepNotification, object: nil, queue: .main, using: pauseIt)
+        NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.screensDidSleepNotification, object: nil, queue: .main, using: pauseIt)
+        DistributedNotificationCenter.default().addObserver(forName: .init("com.apple.screenIsLocked"), object: nil, queue: .main) { _ in
+            Task { @MainActor in PomodoroTimer.shared.pause(reason: "screen locked") }
+        }
+        #endif
     }
 
     // MARK: Controls
@@ -78,8 +90,12 @@ final class PomodoroTimer {
         start(taskID)
     }
 
-    func pause() {
+    /// Why the timer was paused automatically (shown in the bar), nil when paused by hand.
+    private(set) var pauseReason: String?
+
+    func pause(reason: String? = nil) {
         guard isRunning else { return }
+        pauseReason = reason
         pausedRemaining = remaining
         endsAt = nil
         cancelNotification()
@@ -89,6 +105,7 @@ final class PomodoroTimer {
 
     func resume() {
         guard let p = pausedRemaining else { return }
+        pauseReason = nil
         endsAt = Date().addingTimeInterval(p)
         pausedRemaining = nil
         scheduleNotification()

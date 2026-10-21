@@ -18,7 +18,7 @@ struct PomodoroBar: View {
                 }
                 .frame(width: 22, height: 22)
                 VStack(alignment: .leading, spacing: 0) {
-                    Text(timer.phase == .ready ? "Break over — ready for the next one" : timer.phaseLabel + (timer.isPaused ? " (paused)" : ""))
+                    Text(timer.phase == .ready ? "Break over — ready for the next one" : timer.phaseLabel + (timer.isPaused ? " (paused\(timer.pauseReason.map { " — " + $0 } ?? ""))" : ""))
                         .font(.caption).foregroundStyle(tint)
                     Button { if let id = timer.taskID { model.reveal(id) } } label: {
                         Text(title).font(.callout.weight(.medium)).lineLimit(1)

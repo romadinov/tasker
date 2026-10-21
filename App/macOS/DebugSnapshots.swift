@@ -21,11 +21,15 @@ enum DebugSnapshots {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 6) {
                     NSLog("TASKER-TICK appActive=%d playing=%d countdownMoved=%.0fs", NSApp.isActive ? 1 : 0, TickSound.shared.isPlaying ? 1 : 0,
                           r0 - PomodoroTimer.shared.remaining)
-                    PomodoroTimer.shared.pause()
-                    NSLog("TASKER-TICK paused playing=%d", TickSound.shared.isPlaying ? 1 : 0)
+                    // Simulate closing the lid.
+                    NSWorkspace.shared.notificationCenter.post(name: NSWorkspace.willSleepNotification, object: nil)
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                    NSLog("TASKER-TICK afterSleep paused=%d reason=%@ playing=%d", PomodoroTimer.shared.isPaused ? 1 : 0,
+                          PomodoroTimer.shared.pauseReason ?? "-", TickSound.shared.isPlaying ? 1 : 0)
                     PomodoroTimer.shared.stop()
                     TickSound.shared.enabled = wasEnabled
                     NSApp.terminate(nil)
+                    }
                 }
             }
             return
