@@ -159,3 +159,25 @@ import Testing
         #expect(s.snapshot().tasks["P"]?.status == .active)
     }
 }
+
+@Suite struct ConvertBackTests {
+    @Test func projectBecomesInboxActionWithSubtasks() throws {
+        let s = try tempStore()
+        s.transact { tx in
+            tx.createTask(NewTask(title: "X"), id: "X")
+            var p = NewTask(title: "P"); p.isProject = true
+            tx.createTask(p, id: "P")
+            tx.createTask(NewTask(title: "A", parent: "P"), id: "A")
+        }
+        s.transact { $0.convertToAction("P") }
+        let snap = s.snapshot()
+        #expect(snap.tasks["P"]?.isProject == false)
+        #expect(snap.inboxIDs.first == "P")
+        #expect(snap.childIDs("P") == ["A"])
+        #expect(snap.projectInfo["P"] == nil)
+        // and back again
+        s.transact { $0.convertToProject("P", folder: nil) }
+        #expect(s.snapshot().tasks["P"]?.isProject == true)
+        #expect(s.snapshot().childIDs("P") == ["A"])
+    }
+}

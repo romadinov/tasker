@@ -217,6 +217,20 @@ extension Tx {
         set(.task, id, F.pos, Position(parent: folder, order: orderKey(in: folder ?? Snapshot.libraryKey, placement: .end, excluding: id)).json)
     }
 
+    /// Project → action (its actions become subtasks). It goes to the Inbox (top), ready to be filed.
+    /// Completed/dropped projects stay completed/dropped actions.
+    public mutating func convertToAction(_ id: String) {
+        guard let t = base.tasks[id], t.isProject else { return }
+        set(.task, id, F.kind, "action")
+        set(.task, id, F.status, .null)
+        set(.task, id, F.reviewEvery, .null)
+        set(.task, id, F.nextReview, .null)
+        set(.task, id, F.singleActions, .null)
+        if t.status == .done && t.completedAt == nil { set(.task, id, F.completed, .date(now)) }
+        if t.status == .dropped && t.droppedAt == nil { set(.task, id, F.dropped, .date(now)) }
+        set(.task, id, F.pos, Position(parent: nil, order: orderKey(in: Snapshot.inboxKey, placement: .start, excluding: id)).json)
+    }
+
     // MARK: Repeating tasks
 
     /// A completed copy is left behind and the task's dates move to the next

@@ -381,6 +381,9 @@ struct ItemContextMenu: View {
                     Button("Convert to Project") { model.convertToProject(ids[0]) }
                 }
             }
+            if ids.count == 1, let p = tasks.first, p.isProject {
+                Button("Convert to Action") { model.convertToAction(p.id) }
+            }
             if tasks.allSatisfy(\.isProject) {
                 Button("Mark Reviewed") { model.perform("Mark Reviewed") { tx in for id in ids { tx.markReviewed(id) } }; model.recentlyCompleted.formUnion(ids) }
             }

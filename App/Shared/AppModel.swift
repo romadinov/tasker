@@ -522,6 +522,20 @@ final class AppModel {
         expanded.formUnion(parents)
     }
 
+    /// Convert to Action: the project becomes an Inbox action (its actions its subtasks), stays in place in
+    /// this view, and its Project field opens so it can be filed right away.
+    func convertToAction(_ id: String) {
+        pinInPlace([id])
+        perform("Convert to Action") { $0.convertToAction(id) }
+        if sidebar != .projects || projectFocus.isEmpty || !projectFocus.contains(id) {
+            openInline(id, .project)
+        } else {
+            // It was the focused project: show it where it now lives.
+            sidebar = .inbox
+            DispatchQueue.main.async { self.openInline(id, .project) }
+        }
+    }
+
     /// Convert to Project: it stays where it is in this view (expanded) so you can add actions to it right
     /// there; it goes into the folder of the project it was in (top level from the Inbox).
     func convertToProject(_ id: String) {
@@ -1006,13 +1020,15 @@ final class AppModel {
             localEditPending = false
             let now = Set(result.flatMap { $0.rows.map(\.id) })
             for (si, sec) in shownLayout.enumerated() {
-                for (i, row) in sec.rows.enumerated() where !now.contains(row.id) && keptRows[row.id] == nil && snapshot.tasks[row.id] != nil {
+                // Folders too: one emptied by this edit stays, so what was in it has somewhere to show.
+                for (i, row) in sec.rows.enumerated() where !now.contains(row.id) && keptRows[row.id] == nil
+                    && (snapshot.tasks[row.id] != nil || snapshot.folders[row.id] != nil) {
                     keptRows[row.id] = makeKept(sec, si, i)
                 }
             }
         }
         if !keptRows.isEmpty {
-            keptRows = keptRows.filter { snapshot.tasks[$0.key] != nil } // deleted items do go away
+            keptRows = keptRows.filter { snapshot.tasks[$0.key] != nil || snapshot.folders[$0.key] != nil } // deleted items do go away
             // A kept row that is (now) a project — e.g. converted here — shows its actions underneath,
             // so you can add to it in place (Return, Add Inside, Indent) like to a group.
             var childRows: [String: [OutlineRow]] = [:]
@@ -1038,11 +1054,21 @@ final class AppModel {
                     result[i].rows = out
                 }
             }
-            for k in keptRows.values.sorted(by: { $0.seq < $1.seq }) {
+            // Rows whose parent is itself a kept row wait for it, so keep passing until nothing more fits.
+            var pending = keptRows.values.sorted(by: { $0.seq < $1.seq })
+            var progress = true
+            while progress && !pending.isEmpty {
+            progress = false
+            var waiting: [KeptRow] = []
+            for k in pending {
                 if childIDs.contains(k.row.id) { continue }
                 if result.contains(where: { $0.rows.contains { $0.id == k.row.id } }) { continue }
-                // Its parent row was collapsed or is gone: nothing to show it under.
-                if let p = k.parent, !result.contains(where: { $0.rows.contains { $0.id == p && $0.expanded } }) { continue }
+                // Its parent row was collapsed or is gone: nothing to show it under (yet).
+                if let p = k.parent, !result.contains(where: { $0.rows.contains { $0.id == p && $0.expanded } }) {
+                    if keptRows[p] != nil { waiting.append(k) }
+                    continue
+                }
+                progress = true
                 var si = result.firstIndex { $0.id == k.section }
                 if si == nil {
                     let at = min(k.sectionIndex, result.count)
@@ -1052,6 +1078,11 @@ final class AppModel {
                 var rows = result[si!].rows
                 var row = k.row
                 let kids = childRows[k.row.id] ?? []
+                if let t = snapshot.tasks[k.row.id], (t.isProject ? OutlineRow.Kind.project : .task) != row.kind {
+                    // Converted since it was captured (project ⇄ action).
+                    row = OutlineRow(id: row.id, kind: t.isProject ? .project : .task, depth: row.depth, hasChildren: row.hasChildren,
+                                     expanded: row.expanded, showContext: row.showContext, showProject: row.showProject)
+                }
                 if snapshot.tasks[k.row.id]?.isProject == true {
                     row = OutlineRow(id: row.id, kind: .project, depth: row.depth, hasChildren: !(snapshot.children[row.id] ?? []).isEmpty,
                                      expanded: expanded.contains(row.id), showContext: row.showContext, showProject: row.showProject)
@@ -1069,6 +1100,8 @@ final class AppModel {
                 }
                 rows.insert(contentsOf: [row] + kids, at: at)
                 result[si!].rows = rows
+            }
+            pending = waiting
             }
         }
         shownLayout = result

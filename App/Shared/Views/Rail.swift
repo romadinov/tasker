@@ -186,6 +186,7 @@ struct ProjectTree: View {
                     Button("New Project") { model.selection = []; model.projectFocus = n.isFolder ? [n.id] : model.projectFocus; model.newProject(inFolder: n.isFolder ? n.id : s.projectInfo[n.id]?.folderID) }
                     Button("New Folder") { model.newFolder() }
                     Button("Rename") { model.renamingID = n.id }
+                    if !n.isFolder { Button("Convert to Action") { model.convertToAction(n.id) } }
                     Divider()
                     Menu("Organize") { OrganizeMenuItems(ids: model.projectFocus.contains(n.id) ? Array(model.projectFocus) : [n.id]) }
                     Divider()
