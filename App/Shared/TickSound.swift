@@ -18,7 +18,19 @@ final class TickSound {
     /// Whether the timer currently wants ticking (focus running); the sound plays if also enabled.
     private var wanted = false
 
-    private init() { loop = Self.loopPlayer() }
+    /// Clicks per second (1, 2 or 4).
+    var rate: Int {
+        get { let v = UserDefaults.standard.integer(forKey: "pomodoro.tickRate"); return [1, 2, 4].contains(v) ? v : 2 }
+        set {
+            UserDefaults.standard.set(newValue, forKey: "pomodoro.tickRate")
+            let was = loop?.isPlaying ?? false
+            loop?.stop()
+            loop = Self.loopPlayer(clicks: newValue)
+            if was { update(playing: wanted) }
+        }
+    }
+
+    private init() { loop = Self.loopPlayer(clicks: rate) }
     var isPlaying: Bool { loop?.isPlaying ?? false }
 
     func update(playing: Bool) {
@@ -40,8 +52,8 @@ final class TickSound {
         }
     }
 
-    /// One second of a wind-up kitchen timer: four identical, dry mechanical clicks.
-    private static func loopPlayer() -> AVAudioPlayer? {
+    /// One second of a wind-up kitchen timer: `clicks` identical, dry mechanical clicks.
+    private static func loopPlayer(clicks: Int) -> AVAudioPlayer? {
         let rate = 44_100.0, total = Int(rate)
         var samples = [Int16](repeating: 0, count: total)
         // The same click every time (fixed noise seed): a short noise burst through a ringing resonance.
@@ -58,8 +70,8 @@ final class TickSound {
             click[i] = y * exp(-Double(i) / rate * 350)
         }
         let peak = click.map(abs).max() ?? 1
-        for k in 0..<4 {
-            let start = k * total / 4
+        for k in 0..<clicks {
+            let start = k * total / clicks
             for (i, v) in click.enumerated() where start + i < total {
                 samples[start + i] = Int16(v / peak * 0.3 * Double(Int16.max))
             }

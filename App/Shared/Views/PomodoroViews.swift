@@ -100,6 +100,7 @@ struct PomodoroSettingsSection: View {
     @State private var long = PomodoroTimer.shared.longBreakMinutes
     @State private var every = PomodoroTimer.shared.longEvery
     @State private var tick = TickSound.shared.enabled
+    @State private var tickRate = TickSound.shared.rate
 
     var body: some View {
         Section("Pomodoro") {
@@ -108,7 +109,12 @@ struct PomodoroSettingsSection: View {
             Stepper("Long break: \(long) min", value: $long, in: 5...60, step: 5)
             Stepper("Long break after every \(every) pomodoros", value: $every, in: 2...8)
             Toggle("Ticking sound while focusing", isOn: $tick)
+            Picker("Ticking speed", selection: $tickRate) {
+                Text("Slow (1/s)").tag(1); Text("Medium (2/s)").tag(2); Text("Fast (4/s)").tag(4)
+            }
+            .disabled(!tick)
         }
+        .onChange(of: tickRate) { _, v in TickSound.shared.rate = v }
         .onChange(of: tick) { _, v in TickSound.shared.enabled = v }
         .onChange(of: work) { _, v in PomodoroTimer.shared.workMinutes = v }
         .onChange(of: short) { _, v in PomodoroTimer.shared.shortBreakMinutes = v }
