@@ -205,6 +205,38 @@ enum DebugSnapshots {
                 }
             }
         }))
+        steps.append(("tags-escape", {
+            model.inlineField = nil; model.editingID = nil
+            model.sidebar = .flagged
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                guard let id = model.sections().flatMap(\.rows).map(\.id).first(where: { (model.snapshot.tasks[$0]?.tagIDs.count ?? 0) >= 1 }) else { return }
+                let before = model.snapshot.tasks[id]!.tagIDs
+                model.selection = [id]
+                model.openInline(id, .tags)
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                    guard let win = NSApp.windows.first(where: { $0.frame.width > 600 }) else { return }
+                    let fr = String(describing: win.firstResponder.map { type(of: $0) })
+                    func key(_ ch: String, _ code: UInt16) {
+                        for type in [NSEvent.EventType.keyDown, .keyUp] {
+                            if let e = NSEvent.keyEvent(with: type, location: .zero, modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime,
+                                                        windowNumber: win.windowNumber, context: nil, characters: ch, charactersIgnoringModifiers: ch,
+                                                        isARepeat: false, keyCode: code) { NSApp.postEvent(e, atStart: false) }
+                        }
+                    }
+                    key("\u{7f}", 51) // Backspace: removes the last tag
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                        let mid = model.snapshot.tasks[id]?.tagIDs.count ?? -1
+                        key("\u{1b}", 53) // Escape: should put it back
+                        NSLog("TASKER-ESC afterBackspace=%d", mid)
+                    }
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+                        let after = model.snapshot.tasks[id]?.tagIDs ?? []
+                        NSLog("TASKER-ESC frBefore=%@ tagsBefore=%d tagsAfter=%d inlineField=%@ selection=%d editing=%@", fr, before.count, after.count,
+                              String(describing: model.inlineField?.field), model.selection.count, model.editingID ?? "nil")
+                    }
+                }
+            }
+        }))
         steps.append(("tags-backspace", {
             model.inlineField = nil; model.editingID = nil
             model.sidebar = .flagged

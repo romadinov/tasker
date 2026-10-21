@@ -260,12 +260,7 @@ struct QuickEntryForm: View {
             }
             // Tags
             if editing == .tags {
-                ForEach(tagIDs, id: \.self) { id in
-                    Button { tagIDs.removeAll { $0 == id } } label: {
-                        Badge(text: s.tags[id]?.name ?? "", systemImage: "xmark", color: Palette.tag)
-                    }
-                    .buttonStyle(.plain).help("Remove tag")
-                }
+                ForEach(tagIDs, id: \.self) { id in TagToken(name: s.tags[id]?.name ?? "") { tagIDs.removeAll { $0 == id } } }
                 comboField(kind: .tag, placeholder: "Add tag") { item, viaTab in
                     if let item {
                         let id = item.createName.map { model.createTag(named: $0) } ?? item.id

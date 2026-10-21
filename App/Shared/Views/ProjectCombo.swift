@@ -145,9 +145,12 @@ struct InlineTagsField: View {
     @Environment(AppModel.self) private var model
     let task: TaskItem
     @State private var state: ComboState
+    /// Tags when the field opened: Escape puts them back.
+    @State private var original: [String]
 
     init(task: TaskItem) {
         self.task = task
+        _original = State(initialValue: task.tagIDs)
         let s = ComboState(kind: .tag) { AppModel.shared.snapshot }
         s.excluded = Set(task.tagIDs)
         s.refresh()
@@ -159,13 +162,7 @@ struct InlineTagsField: View {
         let s = model.snapshot
         let ids = (s.tasks[task.id]?.tagIDs ?? task.tagIDs).filter { s.tags[$0] != nil }
         HStack(spacing: 4) {
-            ForEach(ids, id: \.self) { id in
-                Button { remove(id) } label: {
-                    Badge(text: s.tags[id]!.name, systemImage: "xmark", color: Palette.tag)
-                }
-                .buttonStyle(.plain)
-                .help("Remove tag")
-            }
+            ForEach(ids, id: \.self) { id in TagToken(name: s.tags[id]!.name) { remove(id) } }
             field
         }
     }
@@ -178,9 +175,9 @@ struct InlineTagsField: View {
             if viaTab { model.inlineField = .init(id: task.id, field: .flag); return false }
             if item == nil { model.editNextTask(after: task.id); return false }
             return true // Return with a tag picked: stay for another tag
-        }, onCancel: { model.inlineField = nil }, onDeleteEmpty: {
+        }, onCancel: { cancel() }, onDeleteEmpty: {
             if let last = (model.snapshot.tasks[task.id]?.tagIDs ?? []).last(where: { model.snapshot.tags[$0] != nil }) { remove(last) }
-        })
+        }, onEndEditing: { if model.inlineField?.id == task.id && model.inlineField?.field == .tags { model.inlineField = nil } })
         .frame(minWidth: 140, maxWidth: 220)
         #else
         TextField("Add tag", text: Bindable(state).query)
@@ -196,6 +193,18 @@ struct InlineTagsField: View {
                     .presentationCompactAdaptation(.popover)
             }
         #endif
+    }
+
+    /// Escape: undo this session's tag changes and close.
+    func cancel() {
+        let now = model.snapshot.tasks[task.id]?.tagIDs ?? []
+        if Set(now) != Set(original) {
+            model.perform("Edit Tags") { tx in
+                for id in now where !original.contains(id) { tx.setTag(task.id, id, false) }
+                for id in original where !now.contains(id) { tx.setTag(task.id, id, true) }
+            }
+        }
+        model.inlineField = nil
     }
 
     func remove(_ id: String) {
@@ -284,6 +293,9 @@ struct ComboTextField: NSViewRepresentable {
     let onCancel: () -> Void
     /// Backspace in the empty field (Tags: remove the last tag).
     var onDeleteEmpty: (() -> Void)? = nil
+    /// Focus moved elsewhere (a click outside). Defaults to `onCancel`; Tags keep their changes here,
+    /// while Escape (`onCancel`) restores them.
+    var onEndEditing: (() -> Void)? = nil
 
     func makeNSView(context: Context) -> AutoFocusTextField {
         let f = AutoFocusTextField()
@@ -428,7 +440,7 @@ struct ComboTextField: NSViewRepresentable {
                 guard let self, !self.done else { return }
                 self.done = true
                 self.hidePanel()
-                self.parent.onCancel()
+                (self.parent.onEndEditing ?? self.parent.onCancel)()
             }
         }
     }
@@ -443,3 +455,26 @@ final class FirstMouseHostingView<Content: View>: NSHostingView<Content> {
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 }
 #endif
+
+/// A tag in an open Tags field: the name, and a separate × that removes it.
+struct TagToken: View {
+    let name: String
+    let onRemove: () -> Void
+    @Environment(\.backgroundProminence) private var prominence
+
+    var body: some View {
+        let onHighlight = prominence == .increased
+        HStack(spacing: 3) {
+            Text(name).lineLimit(1)
+            Button(action: onRemove) {
+                Image(systemName: "xmark.circle.fill").imageScale(.small).opacity(0.75)
+            }
+            .buttonStyle(.plain)
+            .help("Remove “\(name)”")
+        }
+        .font(.caption)
+        .padding(.leading, 6).padding(.trailing, 3).padding(.vertical, 1)
+        .foregroundStyle(onHighlight ? AnyShapeStyle(.primary) : AnyShapeStyle(Palette.tag))
+        .background(Capsule().fill(onHighlight ? AnyShapeStyle(Color.primary.opacity(0.16)) : AnyShapeStyle(Palette.tag.opacity(0.12))))
+    }
+}
