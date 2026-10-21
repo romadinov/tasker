@@ -373,6 +373,7 @@ struct ItemContextMenu: View {
             if tasks.allSatisfy({ !$0.isProject }) { StageMenu(ids: ids) }
             if ids.count == 1, let t = tasks.first, !t.isProject, !t.isCompleted {
                 Button { PomodoroTimer.shared.start(t.id) } label: { Label("Start Pomodoro", systemImage: "timer") }
+                    .keyboardShortcut("p", modifiers: [.command, .control]) // shows ⌃⌘P in the menu
             }
             Menu("Organize") { OrganizeMenuItems(ids: ids) }
             if tasks.allSatisfy({ !$0.isProject }) {
