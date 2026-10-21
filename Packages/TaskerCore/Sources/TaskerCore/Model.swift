@@ -33,6 +33,9 @@ public enum F {
     public static let sortBy = "sortBy"
     public static let value = "value"
     public static let location = "location"
+    /// Kanban: the stage id an action is in, and its order key within that column.
+    public static let stage = "stage"
+    public static let stageOrder = "stageOrder"
     public static let tagPrefix = "tag:"
     public static func tag(_ id: String) -> String { tagPrefix + id }
 }
@@ -109,6 +112,9 @@ public struct TaskItem: Identifiable, Hashable, Sendable {
     public var reviewInterval: ReviewInterval?
     public var nextReviewDate: Date?
     public var lastReviewDate: Date?
+    // Kanban
+    public var stageID: String?
+    public var stageOrder: String = "V"
 
     public var isProject: Bool { kind == .project }
     public var isCompleted: Bool { isProject ? status == .done || completedAt != nil : completedAt != nil }
@@ -145,6 +151,8 @@ public struct TaskItem: Identifiable, Hashable, Sendable {
             case F.reviewEvery: reviewInterval = v.decode(ReviewInterval.self)
             case F.nextReview: nextReviewDate = v.date
             case F.lastReview: lastReviewDate = v.date
+            case F.stage: stageID = v.string
+            case F.stageOrder: stageOrder = v.string ?? "V"
             default:
                 if field.hasPrefix(F.tagPrefix), v.bool == true {
                     tags.append(String(field.dropFirst(F.tagPrefix.count)))

@@ -172,6 +172,9 @@ struct MetadataLine: View {
         } else if task.isProject {
             for name in s.tagNames(task.tagIDs) { out.append(AnyView(Badge(text: name, color: Palette.tag))) }
         }
+        if let sid = task.stageID, let st = s.stages.first(where: { $0.id == sid }) {
+            out.append(AnyView(Badge(text: st.name, systemImage: "rectangle.split.3x1", color: KanbanView.color(st.color))))
+        }
         if task.repeatRule != nil { out.append(AnyView(Image(systemName: "repeat").font(.caption).foregroundStyle(.secondary))) }
         if let e = task.estimatedMinutes { out.append(AnyView(Badge(text: Fmt.estimate(e), systemImage: "clock"))) }
         if info.isBlocked && !task.isCompleted { out.append(AnyView(Image(systemName: "hourglass").font(.caption).foregroundStyle(.secondary))) }

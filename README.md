@@ -99,6 +99,7 @@ Mac app → Settings → Import → *Read from OmniFocus*. This runs an Omni Aut
 | Organize → Sort Once | Sort a project's, folder's or tag's children (or the selected rows) by title, status or a date |
 | ⇧⌘M | Move to… |
 | ⌘1–⌘7 | Inbox, Projects, Tags, Forecast, Flagged, Nearby, Review (⌘8–9: first perspectives) |
+| ⌃⌘B | Board (Kanban): columns are stages you define (Edit Stages…); drag cards between them |
 | ⌥⌘[ / ⌥⌘] | Back / Forward |
 | ⇧⌘F | Focus |
 | ⌥⌘I / ⌃⌘S | Inspector / Sidebar |

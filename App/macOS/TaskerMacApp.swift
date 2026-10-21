@@ -169,6 +169,7 @@ struct TaskerCommands: Commands {
             Button("Flagged") { model.sidebar = .flagged }.keyboardShortcut("5")
             Button("Nearby") { model.sidebar = .nearby }.keyboardShortcut("6")
             Button("Review") { model.sidebar = .review }.keyboardShortcut("7")
+            Button("Board") { model.sidebar = .kanban }.keyboardShortcut("b", modifiers: [.command, .control])
             Button("Analytics") { model.sidebar = .analytics }.keyboardShortcut("0")
             ForEach(Array(model.snapshot.perspectives.prefix(2).enumerated()), id: \.element.id) { i, p in
                 Button(p.name) { model.sidebar = .perspective(p.id) }.keyboardShortcut(KeyEquivalent(Character("\(8 + i)")))

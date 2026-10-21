@@ -4,20 +4,20 @@ import SwiftUI
 import TaskerCore
 
 enum SidebarItem: Hashable, Codable {
-    case inbox, forecast, flagged, projects, tags, review, nearby, analytics
+    case inbox, forecast, flagged, projects, tags, review, nearby, analytics, kanban
     case perspective(String)
 
     var title: String {
         switch self {
         case .inbox: "Inbox"; case .forecast: "Forecast"; case .flagged: "Flagged"
-        case .projects: "Projects"; case .tags: "Tags"; case .review: "Review"; case .nearby: "Nearby"; case .analytics: "Analytics"
+        case .projects: "Projects"; case .tags: "Tags"; case .review: "Review"; case .nearby: "Nearby"; case .analytics: "Analytics"; case .kanban: "Board"
         case .perspective: "Perspective"
         }
     }
     var icon: String {
         switch self {
         case .inbox: "tray"; case .forecast: "calendar"; case .flagged: "flag"
-        case .projects: "folder"; case .tags: "tag"; case .review: "cup.and.saucer"; case .nearby: "location"; case .analytics: "chart.bar.xaxis"
+        case .projects: "folder"; case .tags: "tag"; case .review: "cup.and.saucer"; case .nearby: "location"; case .analytics: "chart.bar.xaxis"; case .kanban: "rectangle.split.3x1"
         case .perspective: "line.3.horizontal.decrease.circle"
         }
     }
@@ -313,6 +313,30 @@ final class AppModel {
         if let t = snapshot.tasks[id], t.title != v { perform(t.isProject ? "Rename Project" : "Rename") { $0.setTask(id, F.title, .string(v)) } }
         else if let f = snapshot.folders[id], f.name != v { perform("Rename Folder") { $0.set(.folder, id, F.name, .string(v)) } }
         else if let g = snapshot.tags[id], g.name != v { perform("Rename Tag") { $0.set(.tag, id, F.name, .string(v)) } }
+    }
+
+    // MARK: Board (Kanban)
+
+    func moveToStage(_ ids: [String], stage: String?, before: String?) {
+        perform(stage == nil ? "Remove from Board" : "Move Card") { tx in
+            for id in ids { tx.moveToStage(id, stage: stage, before: before) }
+        }
+    }
+
+    func saveStage(_ s: KanbanStage) { perform("Edit Stage") { $0.saveStage(s) } }
+
+    func addStage() {
+        let last = snapshot.stages.last?.order
+        perform("Add Stage") { $0.saveStage(KanbanStage(id: IDs.make(), name: "New Stage", order: FractionalIndex.between(last, nil))) }
+    }
+
+    func reorderStages(from: IndexSet, to: Int) {
+        var list = snapshot.stages
+        list.move(fromOffsets: from, toOffset: to)
+        let keys = FractionalIndex.evenlySpaced(list.count)
+        perform("Reorder Stages") { tx in
+            for (i, var s) in list.enumerated() where s.order != keys[i] { s.order = keys[i]; tx.saveStage(s) }
+        }
     }
 
     /// Re-reads the store after something wrote to it directly (e.g. the OmniFocus import).
@@ -1039,7 +1063,7 @@ final class AppModel {
             }
         case .forecast:
             return forecastSections()
-        case .nearby, .analytics:
+        case .nearby, .analytics, .kanban:
             return []
         case .perspective(let pid):
             guard let p = snapshot.perspectives.first(where: { $0.id == pid }) else { return [] }

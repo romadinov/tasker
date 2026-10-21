@@ -53,6 +53,7 @@ enum DebugSnapshots {
                 if let f = model.snapshot.libraryIDs.first(where: { model.snapshot.folders[$0] != nil }) { model.renamingID = f }
             }),
             ("rename-done", { model.renamingID = nil }),
+            ("kanban-empty", { model.sidebar = .kanban; model.selection = [] }),
             ("analytics", { model.sidebar = .analytics }),
             ("forecast", { model.sidebar = .forecast }),
             ("tags", { model.sidebar = .tags }),

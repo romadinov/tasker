@@ -18,7 +18,13 @@ struct ContentColumn: View {
     }
 
     var body: some View {
-        if model.sidebar == .analytics && model.searchText.isEmpty {
+        if model.sidebar == .kanban && model.searchText.isEmpty {
+            KanbanView()
+                .searchable(text: Bindable(model).searchText, placement: .toolbar, prompt: "Search everything")
+                #if os(iOS)
+                .toolbar { if !isCompactWidth { MainToolbar(model: model) } }
+                #endif
+        } else if model.sidebar == .analytics && model.searchText.isEmpty {
             AnalyticsView()
                 .searchable(text: Bindable(model).searchText, placement: .toolbar, prompt: "Search everything")
                 #if os(iOS)
@@ -359,6 +365,7 @@ struct ItemContextMenu: View {
             }
             Divider()
             Button("Move To…") { model.moveTargetFor = ids }
+            if tasks.allSatisfy({ !$0.isProject }) { StageMenu(ids: ids) }
             Menu("Organize") { OrganizeMenuItems(ids: ids) }
             if tasks.allSatisfy({ !$0.isProject }) {
                 if ids.count == 1 {

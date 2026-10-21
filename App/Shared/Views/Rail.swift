@@ -6,7 +6,7 @@ extension SidebarItem {
     var tint: Color {
         switch self {
         case .inbox: .blue; case .projects: .indigo; case .tags: .purple
-        case .forecast: .red; case .flagged: .orange; case .review: .purple; case .nearby: .green; case .analytics: .teal
+        case .forecast: .red; case .flagged: .orange; case .review: .purple; case .nearby: .green; case .analytics: .teal; case .kanban: .indigo
         case .perspective: .teal
         }
     }
