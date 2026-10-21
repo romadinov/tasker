@@ -8,6 +8,28 @@ import TaskerCore
 @MainActor
 enum DebugSnapshots {
     static func runIfRequested() {
+        // TASKER_TICK_TEST=1: ticking keeps going while another app is in front.
+        if ProcessInfo.processInfo.environment["TASKER_TICK_TEST"] != nil {
+            let model = AppModel.shared
+            let wasEnabled = TickSound.shared.enabled
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                guard let id = model.snapshot.tasks.values.first(where: { !$0.isProject && model.snapshot.info[$0.id]?.isAvailable == true })?.id else { return }
+                TickSound.shared.enabled = true
+                PomodoroTimer.shared.start(id)
+                let r0 = PomodoroTimer.shared.remaining
+                NSWorkspace.shared.runningApplications.first { $0.bundleIdentifier == "com.apple.finder" }?.activate()
+                DispatchQueue.main.asyncAfter(deadline: .now() + 6) {
+                    NSLog("TASKER-TICK appActive=%d playing=%d countdownMoved=%.0fs", NSApp.isActive ? 1 : 0, TickSound.shared.isPlaying ? 1 : 0,
+                          r0 - PomodoroTimer.shared.remaining)
+                    PomodoroTimer.shared.pause()
+                    NSLog("TASKER-TICK paused playing=%d", TickSound.shared.isPlaying ? 1 : 0)
+                    PomodoroTimer.shared.stop()
+                    TickSound.shared.enabled = wasEnabled
+                    NSApp.terminate(nil)
+                }
+            }
+            return
+        }
         // TASKER_WHISPER_TEST=a.wav,b.wav: transcribe files with the app's Whisper path, log, quit.
         if let files = ProcessInfo.processInfo.environment["TASKER_WHISPER_TEST"] {
             Task { @MainActor in

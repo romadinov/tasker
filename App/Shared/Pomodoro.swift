@@ -134,7 +134,6 @@ final class PomodoroTimer {
 
     private func tick() {
         now = Date()
-        if phase == .work && isRunning { TickSound.shared.play() }
         if let e = endsAt, now >= e { phaseEnded(at: e) }
     }
 
@@ -158,6 +157,18 @@ final class PomodoroTimer {
     /// Test hook: end the current phase now.
     func debugEndPhase() { if endsAt != nil { phaseEnded(at: Date()) } }
     #endif
+
+    /// Ticking sound follows "focus running"; App Nap stays off while a pomodoro is active, so the
+    /// countdown (menu bar, notifications' timing) keeps up when Uberdoer isn't in front.
+    private var activity: NSObjectProtocol?
+    private func syncBackgroundState() {
+        TickSound.shared.update(playing: phase == .work && isRunning)
+        if isActive && activity == nil {
+            activity = ProcessInfo.processInfo.beginActivity(options: [.userInitiatedAllowingIdleSystemSleep], reason: "Pomodoro timer")
+        } else if !isActive, let a = activity {
+            ProcessInfo.processInfo.endActivity(a); activity = nil
+        }
+    }
 
     private func startTicking() {
         stopTicking()
@@ -205,6 +216,7 @@ final class PomodoroTimer {
     }
 
     private func save() {
+        syncBackgroundState()
         let s = Saved(phase: phase, taskID: taskID, endsAt: endsAt, pausedRemaining: pausedRemaining, startedAt: startedAt, cycleCount: cycleCount)
         UserDefaults.standard.set(try? JSONEncoder().encode(s), forKey: "pomodoro.state")
     }
@@ -220,6 +232,7 @@ final class PomodoroTimer {
                 DispatchQueue.main.async { self.phaseEnded(at: e) }
             } else {
                 startTicking()
+                DispatchQueue.main.async { self.syncBackgroundState() }
             }
         }
     }
