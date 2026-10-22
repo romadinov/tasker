@@ -386,8 +386,14 @@ struct TaskInspector: View {
     }
 
     func links(_ note: String) -> [URL] {
-        Links.find(in: note).map(\.url).prefix(8).map { $0 }
+        if let hit = Self.linkCache[note] { return hit }
+        let found = Links.find(in: note).map(\.url).prefix(8).map { $0 }
+        if Self.linkCache.count > 200 { Self.linkCache.removeAll() }
+        Self.linkCache[note] = found
+        return found
     }
+    /// Notes rarely change between redraws; scanning them for links on every render showed up in profiles.
+    @MainActor private static var linkCache: [String: [URL]] = [:]
 }
 
 extension View {

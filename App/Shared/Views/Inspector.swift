@@ -3,11 +3,17 @@ import TaskerCore
 
 struct InspectorColumn: View {
     @Environment(AppModel.self) private var model
+    /// The selection the inspector shows. It follows `model.selection` one run-loop turn later, so a click
+    /// highlights the row at once and the (rebuilt-per-item) inspector catches up in the next frame;
+    /// rapid clicks coalesce into one rebuild.
+    @State private var shown: Set<String> = []
+    @State private var generation = 0
 
     var body: some View {
         let s = model.snapshot
+        let selection = shown
         Group {
-            if model.selection.count == 1, let id = model.selection.first {
+            if selection.count == 1, let id = selection.first {
                 if s.tasks[id] != nil {
                     TaskInspector(id: id).id(id)
                 } else if s.folders[id] != nil {
@@ -15,11 +21,11 @@ struct InspectorColumn: View {
                 } else {
                     placeholder("Nothing selected")
                 }
-            } else if model.selection.isEmpty, model.sidebar == .projects || model.sidebar == .review,
+            } else if selection.isEmpty, model.sidebar == .projects || model.sidebar == .review,
                       model.projectFocus.count == 1, let pid = model.projectFocus.first, s.tasks[pid] != nil {
                 TaskInspector(id: pid).id(pid)
-            } else if model.selection.count > 1 {
-                MultiInspector(ids: Array(model.selection))
+            } else if selection.count > 1 {
+                MultiInspector(ids: Array(selection))
             } else if model.sidebar == .tags, model.tagFocus.count == 1, let tid = model.tagFocus.first, s.tags[tid] != nil {
                 TagInspector(id: tid).id(tid)
             } else if model.sidebar == .tags {
@@ -27,6 +33,12 @@ struct InspectorColumn: View {
             } else {
                 placeholder("Select an item to see its details")
             }
+        }
+        .onAppear { shown = model.selection }
+        .onChange(of: model.selection) { _, new in
+            generation += 1
+            let g = generation
+            DispatchQueue.main.async { if g == generation { shown = new } }
         }
     }
 
@@ -343,7 +355,7 @@ struct MultiInspector: View {
     var body: some View {
         Form {
             Text("\(ids.count) items selected").font(.headline)
-            Button("Complete") { for id in ids { model.toggleComplete(id) } }
+            Button("Complete") { model.toggleComplete(ids) }
             Button("Flag / Unflag") { model.toggleFlag(ids) }
             Button("Move To…") { model.moveTargetFor = ids }
             DateRow(label: "Defer all", icon: "moon.zzz", date: nil, defaultHour: 0) { model.setDate(ids, F.deferDate, $0) }

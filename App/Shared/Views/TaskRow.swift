@@ -4,6 +4,11 @@ import TaskerCore
 struct TaskRow: View {
     @Environment(AppModel.self) private var model
     let row: OutlineRow
+    /// Passed in by the list rather than read from `model.selection` here: reading the selection in every
+    /// row made each click re-render every visible row.
+    var isSelected = false
+    /// Show the editable fields (the single selected row, or one kept open; see `lingeringOpen`).
+    var isOpen = false
 
     var body: some View {
         let s = model.snapshot
@@ -29,7 +34,7 @@ struct TaskRow: View {
                             .strikethrough(t.isCompleted || t.isDropped, color: .secondary)
                             .lineLimit(3)
                     }
-                    let selected = (model.selection.contains(t.id) && model.selection.count == 1) || model.lingeringOpen.contains(t.id)
+                    let selected = isOpen
                     if selected && !t.isProject {
                         // Editable fields for the selected row.
                         SelectedFieldsLine(task: t, info: i)
@@ -44,7 +49,7 @@ struct TaskRow: View {
                         .font(.caption.monospacedDigit()).foregroundStyle(.secondary)
                 }
                 if !t.isProject {
-                    if !t.note.isEmpty || model.selection.contains(t.id) {
+                    if !t.note.isEmpty || isSelected {
                         Button {
                             model.selection = [t.id]
                             model.noteEditingID = t.id

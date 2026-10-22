@@ -233,9 +233,15 @@ extension Snapshot {
         func orderKey(_ id: String) -> String {
             tasks[id]?.position.order ?? folders[id]?.position.order ?? "V"
         }
+        // Sort by precomputed (order, id) pairs: looking the order up inside the comparator made this
+        // the most expensive part of every rebuild.
+        var grouped: [String: [(order: String, id: String)]] = [:]
+        for (c, p) in parentOf { grouped[p, default: []].append((orderKey(c), c)) }
         var children: [String: [String]] = [:]
-        for (c, p) in parentOf { children[p, default: []].append(c) }
-        for (k, v) in children { children[k] = v.sorted { (orderKey($0), $0) < (orderKey($1), $1) } }
+        children.reserveCapacity(grouped.count)
+        for (k, v) in grouped {
+            children[k] = v.sorted { $0.order != $1.order ? $0.order < $1.order : $0.id < $1.id }.map(\.id)
+        }
         self.children = children
 
         var tagChildren: [String: [String]] = [:]
@@ -394,7 +400,9 @@ extension Snapshot {
     /// Every replica breaks it the same way: the member whose move is newest goes to the root.
     static func breakCycles(_ parentOf: inout [String: String], stamp: (String) -> HLC, rootFor: (String) -> String) {
         var state: [String: Int] = [:] // 1 = visiting, 2 = done
-        for start in parentOf.keys.sorted() {
+        // Any visiting order finds each cycle once and breaks it at its newest member, so no sort is needed.
+        state.reserveCapacity(parentOf.count)
+        for start in parentOf.keys {
             var path: [String] = []
             var cur: String? = start
             while let c = cur, parentOf[c] != nil, state[c] != 2 {

@@ -150,7 +150,7 @@ struct TaskerCommands: Commands {
             let sel = Array(model.selection)
             // Space (and F to flag) are handled by the focused list, not as menu key equivalents,
             // which would also fire while typing in text fields.
-            Button("Complete  (Space)") { for id in sel { model.toggleComplete(id) } }.disabled(sel.isEmpty)
+            Button("Complete  (Space)") { model.toggleComplete(sel) }.disabled(sel.isEmpty)
             Button("Flag  (F)") { model.toggleFlag(sel) }.keyboardShortcut("l", modifiers: [.command, .shift]).disabled(sel.isEmpty)
             // Return (handled by the list) adds a new item below the selection; this edits the title (also double-click).
             Button("Edit Title") { if let id = sel.first { model.beginEditing(id) } }.disabled(sel.count != 1 || model.editingID != nil)

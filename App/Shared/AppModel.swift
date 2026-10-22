@@ -379,6 +379,19 @@ final class AppModel {
         um.setActionName(record.name)
     }
 
+    /// Several at once in one transaction: one snapshot rebuild and one redraw instead of one per item.
+    func toggleComplete(_ ids: [String]) {
+        guard ids.count > 1 else { if let id = ids.first { toggleComplete(id) }; return }
+        let tasks = ids.compactMap { snapshot.tasks[$0] }
+        let reopen = tasks.allSatisfy { $0.isCompleted && $0.repeatRule == nil }
+        perform(reopen ? "Uncomplete" : "Complete") { tx in
+            for t in tasks {
+                if reopen { tx.uncomplete(t.id) } else if !t.isCompleted || t.repeatRule != nil { tx.complete(t.id) }
+            }
+        }
+        if reopen { recentlyCompleted.subtract(ids) } else { recentlyCompleted.formUnion(tasks.filter { $0.repeatRule == nil }.map(\.id)) }
+    }
+
     func toggleComplete(_ id: String) {
         guard let t = snapshot.tasks[id] else { return }
         if t.isCompleted && t.repeatRule == nil {

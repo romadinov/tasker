@@ -8,6 +8,106 @@ import TaskerCore
 @MainActor
 enum DebugSnapshots {
     static func runIfRequested() {
+        // TASKER_JUMP_TEST=1: click a row below an open one and sample the clicked row's position.
+        if ProcessInfo.processInfo.environment["TASKER_JUMP_TEST"] != nil {
+            let model = AppModel.shared
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                model.sidebar = .inbox
+                NSApp.activate(ignoringOtherApps: true)
+                NSApp.windows.first { $0.frame.width > 600 }?.makeKeyAndOrderFront(nil)
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
+                    guard let win = NSApp.windows.first(where: { $0.frame.width > 600 }) else { return }
+                    func table(_ v: NSView) -> NSTableView? { if let t = v as? NSTableView, t.numberOfRows > 20 { return t }; for c in v.subviews { if let t = table(c) { return t } }; return nil }
+                    guard let tv = win.contentView.flatMap(table), let clip = tv.enclosingScrollView?.contentView else { return }
+                    clip.setBoundsOrigin(NSPoint(x: 0, y: 300)); tv.enclosingScrollView?.reflectScrolledClipView(clip)
+                    let first = tv.row(at: NSPoint(x: 50, y: clip.bounds.minY + 120))
+                    let rows = model.sections().flatMap(\.rows)
+                    // Open a row, then click 5 rows below it.
+                    model.selection = [rows[max(0, first - 1)].id]
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+                        let target = first + 5
+                        let r = tv.rect(ofRow: target)
+                        let p = tv.convert(NSPoint(x: r.minX + 120, y: r.midY), to: nil)
+                        let y0 = tv.rect(ofRow: target).minY - clip.bounds.minY
+                        for type in [NSEvent.EventType.leftMouseDown, .leftMouseUp] {
+                            if let e = NSEvent.mouseEvent(with: type, location: p, modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime,
+                                                          windowNumber: win.windowNumber, context: nil, eventNumber: 0, clickCount: 1, pressure: 1) { NSApp.postEvent(e, atStart: false) }
+                        }
+                        var samples: [String] = []
+                        var n = 0
+                        let t = Timer(timeInterval: 0.015, repeats: true) { timer in
+                            MainActor.assumeIsolated {
+                                samples.append(String(format: "%.0f", tv.rect(ofRow: target).minY - clip.bounds.minY - y0))
+                                n += 1
+                                if n >= 27 {
+                                    timer.invalidate()
+                                    let sel = model.selection.first ?? "-"
+                                    NSLog("TASKER-JUMP offsets (px, every 15ms): %@ selIndex=%d target=%d opened=%d", samples.joined(separator: " "),
+                                          rows.firstIndex { $0.id == sel } ?? -1, target, max(0, first - 1))
+                                    NSApp.terminate(nil)
+                                }
+                            }
+                        }
+                        RunLoop.main.add(t, forMode: .common)
+                    }
+                }
+            }
+            return
+        }
+        // TASKER_PERF_TEST=1: time the pieces behind selecting and completing several rows.
+        if ProcessInfo.processInfo.environment["TASKER_PERF_TEST"] != nil {
+            let model = AppModel.shared
+            func ms(_ t: Date) -> Double { Date().timeIntervalSince(t) * 1000 }
+            let delay = Double(ProcessInfo.processInfo.environment["TASKER_PERF_DELAY"] ?? "") ?? 2
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+                for v in [SidebarItem.inbox, .projects, .flagged] {
+                    model.sidebar = v
+                    var t = Date(); _ = model.sections(); let first = ms(t)
+                    t = Date(); _ = model.sections(); NSLog("TASKER-PERF sections %@: %.1f ms (again %.1f ms), rows=%d", v.title, first, ms(t), model.sections().flatMap(\.rows).count)
+                }
+                var t = Date(); _ = model.store.snapshot(); NSLog("TASKER-PERF snapshot cached: %.1f ms", ms(t))
+                model.sidebar = .inbox
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
+                    let ids = Array(model.sections().flatMap(\.rows).map(\.id).prefix(10))
+                    let t0 = Date()
+                    model.selection = Set(ids)
+                    if ProcessInfo.processInfo.environment["TASKER_PERF_NOINSPECTOR"] != nil { model.showInspector = false }
+                    if ProcessInfo.processInfo.environment["TASKER_PERF_CLICKS"] != nil {
+                        // Many single-row selections, as when clicking around (for the profiler).
+                        let all = model.sections().flatMap(\.rows).map(\.id)
+                        @MainActor func step(_ n: Int) {
+                            guard n < 60 else { NSLog("TASKER-PERF clicks done"); NSApp.terminate(nil); return }
+                            let t = Date()
+                            model.selection = [all[n % min(all.count, 30)]]
+                            DispatchQueue.main.async { if n % 10 == 0 { NSLog("TASKER-PERF click render %.1f ms", ms(t)) }; step(n + 1) }
+                        }
+                        step(0)
+                        return
+                    }
+                    DispatchQueue.main.async {
+                        NSLog("TASKER-PERF select 10 → next runloop: %.1f ms", ms(t0))
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                            var t1 = Date()
+                            _ = model.store.transact("x") { $0.complete(ids[0]) }
+                            NSLog("TASKER-PERF transact only: %.1f ms", ms(t1))
+                            t1 = Date(); _ = model.store.snapshot()
+                            NSLog("TASKER-PERF snapshot rebuild: %.1f ms", ms(t1))
+                            t1 = Date()
+                            model.perform("x") { $0.complete(ids[1]) }
+                            NSLog("TASKER-PERF one perform(complete): %.1f ms", ms(t1))
+                            let t2 = Date()
+                            model.toggleComplete(Array(ids.dropFirst(2)))
+                            let loop = ms(t2)
+                            DispatchQueue.main.async {
+                                NSLog("TASKER-PERF complete 8 in one batch: %.1f ms (+render %.1f ms)", loop, ms(t2))
+                                NSApp.terminate(nil)
+                            }
+                        }
+                    }
+                }
+            }
+            return
+        }
         // TASKER_TICK_TEST=1: ticking keeps going while another app is in front.
         if ProcessInfo.processInfo.environment["TASKER_TICK_TEST"] != nil {
             let model = AppModel.shared

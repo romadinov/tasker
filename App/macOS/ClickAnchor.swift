@@ -10,6 +10,9 @@ enum ClickAnchor {
     /// above the click that shrinks can't be made up for by scrolling (the caller keeps it open instead).
     @discardableResult
     static func keepClickedRowInPlace() -> Bool {
+        #if DEBUG
+        if ProcessInfo.processInfo.environment["TASKER_NO_ANCHOR"] != nil { return true }
+        #endif
         guard let event = NSApp.currentEvent, [.leftMouseDown, .leftMouseUp].contains(event.type),
               let win = event.window, let content = win.contentView else { return true }
         let p = event.locationInWindow
@@ -21,22 +24,32 @@ enum ClickAnchor {
         // The list scrolls under the toolbar, so its top position is negative.
         let minY = -scroll.contentInsets.top
         let before = table.rect(ofRow: row).minY - clip.bounds.minY
-        // Row heights update over the next few layout passes.
-        for delay in [0.0, 0.03, 0.08, 0.2] {
-            DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
-                guard row < table.numberOfRows else { return }
-                let now = table.rect(ofRow: row).minY - clip.bounds.minY
-                let delta = now - before
-                guard abs(delta) >= 1 else { return }
-                var origin = clip.bounds.origin
-                origin.y = max(minY, origin.y + delta)
-                clip.setBoundsOrigin(origin)
-                scroll.reflectScrolledClipView(clip)
-            }
+        func correct() {
+            guard row < table.numberOfRows else { return }
+            let now = table.rect(ofRow: row).minY - clip.bounds.minY
+            let delta = now - before
+            guard abs(delta) >= 1 else { return }
+            var origin = clip.bounds.origin
+            origin.y = max(minY, origin.y + delta)
+            clip.setBoundsOrigin(origin)
+            scroll.reflectScrolledClipView(clip)
+        }
+        // Correct the moment row heights change (the table's frame changes during layout, before the
+        // window draws), so the clicked row never visibly moves; corrections on timers showed as jumps.
+        observer.map(NotificationCenter.default.removeObserver)
+        table.postsFrameChangedNotifications = true
+        observer = NotificationCenter.default.addObserver(forName: NSView.frameDidChangeNotification, object: table, queue: nil) { _ in
+            MainActor.assumeIsolated { correct() }
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            correct()
+            observer.map(NotificationCenter.default.removeObserver); observer = nil
         }
         // Room to scroll back up by at least a selected row's extra height?
         return clip.bounds.minY - minY >= 90
     }
+
+    private static var observer: NSObjectProtocol?
 
     private static func enclosing<T: NSView>(_ type: T.Type, of view: NSView) -> T? {
         var v: NSView? = view

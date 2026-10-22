@@ -87,7 +87,7 @@ struct ContentColumn: View {
             // Bare keys: Space completes, F flags.
             .onKeyPress(.space) {
                 guard !typingInField, !model.selection.isEmpty else { return .ignored }
-                for id in model.selection { model.toggleComplete(id) }
+                model.toggleComplete(Array(model.selection))
                 return .handled
             }
             // Return on a selected row: new item right below it, in edit mode (double-click edits the title).
@@ -213,7 +213,10 @@ struct ContentColumn: View {
         ForEach(rows) { row in
             switch row.kind {
             case .folder: FolderRow(row: row).tag(row.id)
-            case .project, .task: TaskRow(row: row).tag(row.id).id(row.id)
+            case .project, .task:
+                let sel = model.selection.contains(row.id)
+                TaskRow(row: row, isSelected: sel, isOpen: (sel && model.selection.count == 1) || model.lingeringOpen.contains(row.id))
+                    .tag(row.id).id(row.id)
             }
         }
         // Drag to reorder where the list shows the outline order (Inbox, Projects).
@@ -354,7 +357,7 @@ struct ItemContextMenu: View {
         let s = model.snapshot
         let tasks = ids.compactMap { s.tasks[$0] }
         if !tasks.isEmpty {
-            Button(tasks.allSatisfy(\.isCompleted) ? "Mark Incomplete" : "Complete") { for id in ids { model.toggleComplete(id) } }
+            Button(tasks.allSatisfy(\.isCompleted) ? "Mark Incomplete" : "Complete") { model.toggleComplete(ids) }
             Button(tasks.allSatisfy(\.flagged) ? "Unflag" : "Flag") { model.toggleFlag(ids) }
             Menu("Defer Until") {
                 Button("Tomorrow") { model.setDate(ids, F.deferDate, QuickEntryParser(snapshot: s).date("tomorrow", hour: 0)) }
