@@ -66,7 +66,10 @@ struct TaskRow: View {
             }
             .padding(.leading, CGFloat(row.depth) * 18)
             .padding(.vertical, 2)
-            .opacity(i.isAvailable || t.isCompleted || model.recentlyCompleted.contains(t.id) || t.isProject ? 1 : 0.55)
+            // Dim what you can't act on yet (deferred, blocked, on-hold project). An on-hold tag alone —
+            // e.g. Waiting — doesn't dim: those are real items you follow up on.
+            .opacity(i.isAvailable || t.isCompleted || model.recentlyCompleted.contains(t.id) || t.isProject
+                     || (i.hasOnHoldTag && i.isRemaining && !i.isDeferred && !i.isBlocked) ? 1 : 0.55)
             #if os(iOS)
             .swipeActions(edge: .leading, allowsFullSwipe: true) {
                 if !t.isProject {
