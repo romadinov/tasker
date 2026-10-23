@@ -55,7 +55,21 @@ final class AppModel {
 
     let store: Store
     let sync: CloudSync?
-    private(set) var snapshot: Snapshot
+    private(set) var snapshot: Snapshot {
+        didSet { if snapshot.version != oldValue.version { announceChange() } }
+    }
+
+    @ObservationIgnored private var announceScheduled = false
+    /// Tell companion apps the data changed (at most every 2 s); see `TaskerConfig.dataChangedNotification`.
+    private func announceChange() {
+        guard !announceScheduled else { return }
+        announceScheduled = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self] in
+            self?.announceScheduled = false
+            CFNotificationCenterPostNotification(CFNotificationCenterGetDarwinNotifyCenter(),
+                                                 CFNotificationName(TaskerConfig.dataChangedNotification as CFString), nil, nil, true)
+        }
+    }
     var syncStatus = SyncStatus()
     var openError: String?
 
@@ -118,7 +132,13 @@ final class AppModel {
     var filter: ItemFilter = .remaining
     var tagFilter: ItemFilter = .available
     var searchText = ""
-    var forecastDay: Date = Calendar.current.startOfDay(for: Date())
+    /// The day picked in Forecast; nil = today. Storing "today" as a date froze it at launch, so after
+    /// midnight Forecast showed yesterday (empty) until the app was restarted.
+    private var forecastPick: Date?
+    var forecastDay: Date {
+        get { forecastPick ?? Calendar.current.startOfDay(for: Date()) }
+        set { forecastPick = newValue == Calendar.current.startOfDay(for: Date()) ? nil : newValue }
+    }
     var expanded: Set<String> = Set(UserDefaults.standard.stringArray(forKey: "expanded") ?? []) {
         didSet { UserDefaults.standard.set(Array(expanded), forKey: "expanded") }
     }

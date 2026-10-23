@@ -15,6 +15,10 @@ public enum TaskerConfig {
     public static let appGroup = "group.com.romadinov.tasker"
     /// Posted (Darwin notification) by extensions after writing to the shared database.
     public static let externalChangeNotification = "com.romadinov.tasker.external-change"
+    /// Posted (Darwin notification, debounced) by the app whenever its data changed — local edits or
+    /// changes synced from other devices — so companion apps (e.g. Jinnie) can re-read via uberdoer-mcp
+    /// right away instead of polling. Carries no payload.
+    public static let dataChangedNotification = "com.romadinov.uberdoer.changed"
 
     /// iOS: the app group container, shared with the share extension.
     /// macOS: ~/Library/Application Support/Tasker (the folder kept its original name so existing data carries over).
