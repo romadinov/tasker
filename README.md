@@ -138,5 +138,7 @@ deep link and any selected text; on iPhone/iPad use Scriptorium's "Send to Uberd
 The extension is sandboxed, so it hands the item to the app through `uberdoer://add?quick=1`. If it's missing, enable it
 in System Settings → General → Login Items & Extensions → Sharing. On iPhone/iPad Uberdoer is in the share sheet.
 
+`uberdoer://task/<id>` opens Uberdoer on that task (selected, in its project or the Inbox), on Mac, iPhone and iPad. The id is the one the MCP tools return.
+
 `uberdoer://clip` (Mac) runs the clipper on the frontmost app — `?quick=1` saves straight to the Inbox, `?dry=1` only
 shows what would be captured. Handy from Shortcuts or Keyboard Maestro (use `open -g` so Uberdoer stays in the background).

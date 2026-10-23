@@ -338,6 +338,8 @@ final class AppModel {
     /// Shows an action where it lives (its project, or the Inbox) and selects it.
     func reveal(_ id: String) {
         guard let t = snapshot.tasks[id] else { return }
+        searchText = ""
+        focusIDs = []
         if let p = snapshot.info[id]?.projectID {
             sidebar = .projects
             projectFocus = [p]
@@ -345,7 +347,33 @@ final class AppModel {
         } else if snapshot.info[id]?.isInbox == true || t.position.parent == nil {
             sidebar = .inbox
         }
-        DispatchQueue.main.async { self.selection = [id]; self.scrollToRow = id }
+        DispatchQueue.main.async {
+            // Completed/dropped items are filtered out of the lists; show this one anyway (until Clean Up).
+            if self.snapshot.info[id]?.isRemaining == false { self.recentlyCompleted.insert(id) }
+            self.selection = [id]
+            self.scrollToRow = id
+        }
+    }
+
+    /// `uberdoer://task/<id>` (also throughline:// and tasker://): the task id, if this is such a link.
+    static func taskID(from url: URL) -> String? {
+        guard ["uberdoer", "throughline", "tasker"].contains(url.scheme?.lowercased() ?? ""), url.host == "task" else { return nil }
+        let id = url.pathComponents.dropFirst().first ?? ""
+        return id.isEmpty ? nil : id
+    }
+
+    /// Opens a task link: reveals and selects the task.
+    /// Opens a task link: reveals and selects the task. False if it isn't here (deleted, or not synced yet).
+    @discardableResult
+    func openTaskLink(_ id: String) -> Bool {
+        guard snapshot.tasks[id] != nil else {
+            #if os(iOS)
+            banner = "That task isn't in Uberdoer (deleted, or not synced yet)."
+            #endif
+            return false
+        }
+        reveal(id)
+        return true
     }
 
     // MARK: Board (Kanban)

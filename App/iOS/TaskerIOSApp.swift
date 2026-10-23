@@ -13,7 +13,8 @@ struct TaskerIOSApp: App {
                 .environment(AppModel.shared)
                 .onOpenURL { url in
                     // tasker://add?… from Scriptorium and other apps.
-                    if let r = AddRequest(url: url) { AppModel.shared.handleAdd(r) }
+                    if let id = AppModel.taskID(from: url) { AppModel.shared.openTaskLink(id) }
+                    else if let r = AddRequest(url: url) { AppModel.shared.handleAdd(r) }
                 }
                 .overlay(alignment: .top) {
                     if let b = AppModel.shared.banner {

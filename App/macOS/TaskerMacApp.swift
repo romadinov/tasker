@@ -61,6 +61,13 @@ final class MacAppDelegate: NSObject, NSApplicationDelegate {
     func application(_ application: NSApplication, open urls: [URL]) {
         MainActor.assumeIsolated {
             for url in urls {
+                if let id = AppModel.taskID(from: url) {
+                    // uberdoer://task/<id> (e.g. "Open in Uberdoer" from Jinnie): bring the window up on that task.
+                    NSApp.activate()
+                    NSApp.windows.first { $0.frame.width > 600 }?.makeKeyAndOrderFront(nil)
+                    if !AppModel.shared.openTaskLink(id) { Toast.show("Task not found", detail: "It was deleted, or hasn't synced yet.") }
+                    continue
+                }
                 if let r = AddRequest(url: url) { AppModel.shared.handleAdd(r); continue }
                 // tasker://clip[?quick=1|dry=1] — run the clipper on the frontmost app (Shortcuts, Keyboard Maestro…).
                 // dry=1 only reports what would be captured (no task is created).

@@ -8,6 +8,21 @@ import TaskerCore
 @MainActor
 enum DebugSnapshots {
     static func runIfRequested() {
+        // TASKER_LINK_TEST=<url>: open a task link through the app delegate, log what got revealed.
+        if let link = ProcessInfo.processInfo.environment["TASKER_LINK_TEST"], let url = URL(string: link) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                NSApp.delegate?.application?(NSApp, open: [url])
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+                    let m = AppModel.shared
+                    let id = AppModel.taskID(from: url) ?? "-"
+                    let rows = m.sections().flatMap(\.rows).map(\.id)
+                    NSLog("TASKER-LINK id=%@ sidebar=%@ focus=%@ selected=%d visible=%d", id, m.sidebar?.title ?? "-",
+                          m.projectFocus.first.flatMap { m.snapshot.tasks[$0]?.title } ?? "-", m.selection == [id] ? 1 : 0, rows.contains(id) ? 1 : 0)
+                    NSApp.terminate(nil)
+                }
+            }
+            return
+        }
         // TASKER_JUMP_TEST=1: click a row below an open one and sample the clicked row's position.
         if ProcessInfo.processInfo.environment["TASKER_JUMP_TEST"] != nil {
             let model = AppModel.shared
