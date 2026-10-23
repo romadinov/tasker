@@ -147,14 +147,25 @@ struct ContentColumn: View {
         }
         #if os(iOS)
         .overlay(alignment: .bottomTrailing) {
-            Button { addAction() } label: {
-                Image(systemName: "plus")
-                    .font(.title2.weight(.semibold))
-                    .foregroundStyle(.white)
-                    .frame(width: 56, height: 56)
-                    .background(Circle().fill(Color.accentColor).shadow(radius: 4, y: 2))
+            VStack(spacing: 14) {
+                // Voice entry: Quick Entry that starts listening; Return/Save files it in the Inbox.
+                Button { model.presentQuickEntry(listen: true) } label: {
+                    Image(systemName: "mic.fill")
+                        .font(.title3.weight(.semibold))
+                        .foregroundStyle(Color.accentColor)
+                        .frame(width: 48, height: 48)
+                        .background(Circle().fill(.regularMaterial).shadow(radius: 3, y: 2))
+                }
+                .accessibilityLabel("Dictate Action")
+                Button { addAction() } label: {
+                    Image(systemName: "plus")
+                        .font(.title2.weight(.semibold))
+                        .foregroundStyle(.white)
+                        .frame(width: 56, height: 56)
+                        .background(Circle().fill(Color.accentColor).shadow(radius: 4, y: 2))
+                }
+                .accessibilityLabel("Add Action")
             }
-            .accessibilityLabel("Add Action")
             .padding(.trailing, 20)
             .padding(.bottom, 72)
         }

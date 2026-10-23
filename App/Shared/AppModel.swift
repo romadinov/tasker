@@ -906,8 +906,9 @@ final class AppModel {
 
     /// Opens Quick Entry pre-filled for the current context (used for "+" on compact screens,
     /// where inline row editing would fight with navigation).
-    func presentQuickEntry() {
+    func presentQuickEntry(listen: Bool = false) {
         var c = Capture()
+        c.listen = listen
         if let s = selection.first, selection.count == 1, let t = snapshot.tasks[s] {
             c.projectID = t.isProject ? s : snapshot.info[s]?.projectID
         }
