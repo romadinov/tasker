@@ -52,6 +52,11 @@ What went wrong (or nearly did), why, and the rule we keep now. Newest themes fi
   harness predates our changes — don't chase it blindly.
 - **Escape vs losing focus are different intents.** Escape restores (Tags), clicking away keeps changes.
 
+- **Installing a new app doesn't update running MCP servers.** Each Claude session keeps its own long-lived
+  `uberdoer-mcp` process on the old binary (and the old tool schema) until the session reconnects (`/mcp`). After
+  changing MCP behaviour, tell sessions to reconnect; until then their writes use the old code (e.g. `#127` parsed
+  as a tag after the parser fix shipped).
+
 ## Testing practice
 
 - **The debug harness on a database copy is the main test bench**: render steps to PNG, post real events
