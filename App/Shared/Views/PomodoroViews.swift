@@ -110,7 +110,7 @@ struct PomodoroSettingsSection: View {
             Stepper("Long break after every \(every) pomodoros", value: $every, in: 2...8)
             Toggle("Ticking sound while focusing", isOn: $tick)
             Picker("Ticking speed", selection: $tickRate) {
-                Text("Slow (1/s)").tag(1); Text("Medium (2/s)").tag(2); Text("Fast (4/s)").tag(4)
+                Text("1 per second").tag(1); Text("2 per second").tag(2); Text("4 per second").tag(4)
             }
             .disabled(!tick)
         }

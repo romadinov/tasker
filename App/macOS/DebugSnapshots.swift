@@ -195,6 +195,10 @@ enum DebugSnapshots {
             }),
             ("rename-done", { model.renamingID = nil }),
             ("kanban-empty", { model.sidebar = .kanban; model.selection = [] }),
+            ("search-then-board", {
+                model.sidebar = .inbox; model.searchText = "демо"
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { model.sidebar = .kanban; NSLog("TASKER-VIEW board after search: search='%@'", model.searchText) }
+            }),
             ("analytics", { model.sidebar = .analytics }),
             ("forecast", { model.sidebar = .forecast }),
             ("tags", { model.sidebar = .tags }),

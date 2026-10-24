@@ -20,7 +20,7 @@ final class TickSound {
 
     /// Clicks per second (1, 2 or 4).
     var rate: Int {
-        get { let v = UserDefaults.standard.integer(forKey: "pomodoro.tickRate"); return [1, 2, 4].contains(v) ? v : 2 }
+        get { let v = UserDefaults.standard.integer(forKey: "pomodoro.tickRate"); return [1, 2, 4].contains(v) ? v : 1 }
         set {
             UserDefaults.standard.set(newValue, forKey: "pomodoro.tickRate")
             let was = loop?.isPlaying ?? false

@@ -76,6 +76,9 @@ final class AppModel {
     var sidebar: SidebarItem? = .inbox {
         didSet {
             guard oldValue != sidebar else { return }
+            // Picking a view means "show me this view": leave any search (it would otherwise keep
+            // showing results in place of Board, Nearby or the list).
+            if !searchText.isEmpty { searchText = "" }
             inboxKept = []
             pendingSelection = [] // only selections made after this point survive the switch
             // Deferred: mutating the list's selection while it is handling a sidebar click
