@@ -883,6 +883,11 @@ final class AppModel {
         }
         var tagIDs = r.tags.compactMap { n in s.tags.values.first { $0.name.compare(n, options: .caseInsensitive) == .orderedSame }?.id }
         let title = r.title.isEmpty ? (r.url.map { _ in "Link" } ?? String(r.note.prefix(80))) : r.title
+        if r.quick, let ref = r.externalRef, let existing = s.tasks.values.first(where: { $0.externalRef == ref }) {
+            // Already created for this caller id: don't duplicate, just hand the id back.
+            if let x = r.successURL(id: existing.id) { openExternal(x) }
+            return
+        }
         if r.quick {
             if projectID == nil, let name = r.project, name.contains(":") { projectID = createProject(named: name) }
             for n in r.tags where !s.tags.values.contains(where: { $0.name.compare(n, options: .caseInsensitive) == .orderedSame }) {
@@ -891,12 +896,18 @@ final class AppModel {
             let id = quickAdd(title: title, note: r.fullNote, projectID: projectID, tagIDs: tagIDs, flagged: r.flagged,
                               deferDate: date(r.deferDate, 0), dueDate: date(r.due, 17))
             if let id, let planned = date(r.planned, 9) { perform("Planned") { $0.setTask(id, F.plannedDate, .date(planned)) } }
+            if let id, r.externalRef != nil || r.parent.map({ snapshot.tasks[$0] != nil }) == true {
+                perform("Link") { tx in
+                    if let ref = r.externalRef { tx.setTask(id, F.externalRef, .string(ref)) }
+                    if let p = r.parent, tx.base.tasks[p] != nil { tx.move(id, to: p) }
+                }
+            }
             banner = "Added to Uberdoer: \(title)"
             DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) { [weak self] in self?.banner = nil }
             #if os(macOS)
             NotificationCenter.default.post(name: .taskerQuickAdded, object: title)
             #endif
-            if let x = r.xSuccess { openExternal(x) }
+            if let x = r.successURL(id: id) { openExternal(x) }
         } else {
             var c = Capture(title: title, note: r.fullNote)
             c.projectID = projectID; c.tagIDs = tagIDs; c.flagged = r.flagged; c.dueDate = date(r.due, 17)

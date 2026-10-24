@@ -116,7 +116,9 @@ Quick-entry shorthand: `#tag ::project ! due:fri defer:tomorrow plan:+3d ~30m`
 claude mcp add --scope user uberdoer -- "/Applications/Uberdoer.app/Contents/MacOS/uberdoer-mcp"
 ```
 
-Tools: `list_perspectives`, `get_perspective_items`, `search_tasks`, `get_task`, `list_projects`, `list_tags`, `create_task`, `update_task`, `complete_task`, `drop_task`, `create_project`, `mark_reviewed`. Set `TASKER_DB=/path/to/copy.sqlite` to point it at a test database.
+Tools: `list_perspectives`, `get_perspective_items`, `search_tasks`, `get_task`, `list_projects`, `list_tags`, `create_task`, `update_task`, `complete_task`, `drop_task`, `create_project`, `mark_reviewed`, `find_by_external_ref`, `changes_since`.
+
+For companion apps: `create_task`/`create_project` take `external_ref` (your stable id; an existing item with it is returned unchanged, `existing: true`), `create_task`/`update_task` take `parent` (nest inside an action or project) and `literal` (no shorthand parsing). `changes_since(since:, external_ref_prefix:)` returns items changed after a moment plus a `now` cursor for the next call. The app posts the Darwin notification `com.romadinov.uberdoer.changed` (debounced) after any change. Set `TASKER_DB=/path/to/copy.sqlite` to point it at a test database.
 
 ## Sending items from other apps (`uberdoer://add`)
 
@@ -126,6 +128,8 @@ Mac, iPhone and iPad register the `tasker` URL scheme:
 uberdoer://add?title=<text>&note=<text>&url=<link>&project=<"Folder : Project" or name>&tags=<a,b>
             &flagged=1&due=<ISO or "fri"/"+3d">&defer=…&planned=…&quick=1&x-success=<return URL>
 ```
+
+With `quick=1`, `external_ref=` reuses an existing item instead of duplicating, `parent=<id>` nests it, and `x-success` gets `id=<task id>` appended.
 
 Without `quick` Quick Entry opens pre-filled; with `quick=1` the item is saved straight to the Inbox and `x-success`
 (if given) is opened afterwards, returning to the calling app. `url` becomes the first line of the note, and app links

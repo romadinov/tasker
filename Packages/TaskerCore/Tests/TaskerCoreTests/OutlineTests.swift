@@ -190,3 +190,12 @@ import Testing
         #expect(r.unknownTags == ["phone"])
     }
 }
+
+@Suite struct AddLinkTests {
+    @Test func externalRefParentAndIdInSuccess() throws {
+        let r = try #require(AddRequest(url: URL(string: "uberdoer://add?title=Node&quick=1&external_ref=mm:7&parent=abc&x-success=mindmapper://created?node=7")!))
+        #expect(r.externalRef == "mm:7")
+        #expect(r.parent == "abc")
+        #expect(r.successURL(id: "XYZ")?.absoluteString == "mindmapper://created?node=7&id=XYZ")
+    }
+}

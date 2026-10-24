@@ -58,6 +58,8 @@ func commit(_ name: String, _ body: (inout Tx) -> Void) {
 // MARK: - Formatting
 
 let iso: ISO8601DateFormatter = { let f = ISO8601DateFormatter(); f.formatOptions = [.withInternetDateTime]; f.timeZone = .current; return f }()
+/// Millisecond precision for change cursors (whole seconds would re-report items changed in the same second).
+let isoMS: ISO8601DateFormatter = { let f = ISO8601DateFormatter(); f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]; f.timeZone = .current; return f }()
 func date(_ d: Date?) -> JSON { d.map { .string(iso.string(from: $0)) } ?? .null }
 
 func taskJSON(_ s: Snapshot, _ t: TaskItem, full: Bool = false) -> JSON {
@@ -86,10 +88,13 @@ func taskJSON(_ s: Snapshot, _ t: TaskItem, full: Bool = false) -> JSON {
     if let e = t.estimatedMinutes { o["estimateMinutes"] = .number(Double(e)) }
     if let r = t.repeatRule { o["repeat"] = .string(r.summary) }
     if let c = t.completedAt { o["completed"] = date(c) }
+    if let d = t.droppedAt { o["dropped"] = date(d) }
+    if let r = t.externalRef { o["external_ref"] = .string(r) }
+    if !t.isProject, let p = i?.parentID, s.tasks[p]?.isProject == false { o["parent"] = .string(p) }
+    o["changed"] = .string(isoMS.string(from: t.modifiedAt))
     if full {
         o["note"] = .string(t.note)
         o["added"] = date(t.createdAt)
-        o["changed"] = date(t.modifiedAt)
         let kids = s.childIDs(t.id).compactMap { s.tasks[$0] }
         if !kids.isEmpty { o["children"] = .array(kids.map { taskJSON(s, $0) }) }
     } else if !t.note.isEmpty {
@@ -122,6 +127,10 @@ func findProject(_ s: Snapshot, _ name: String) -> TaskItem? {
     if let p = s.tasks[name], p.isProject { return p }
     let remaining = s.orderedProjects.filter { s.info[$0.id]?.isRemaining == true }
     return Fuzzy.rank(remaining, name) { p in ([p.title] + s.folderPath(of: p.id)).joined(separator: "  ") }.first
+}
+
+func findByExternalRef(_ s: Snapshot, _ ref: String) -> TaskItem? {
+    s.tasks.values.first { $0.externalRef == ref }
 }
 
 func findOrCreateTag(_ s: Snapshot, _ name: String, tx: inout Tx) -> String {
@@ -265,10 +274,22 @@ let tools: [Tool] = [
                       "project": str("Project as \"Folder : Project\" or a fuzzy name; created if a full path doesn't exist"),
                       "tags": strArray("Tag names (created if missing)"), "flagged": bool("Flag it"),
                       "defer": str(dateHelp), "due": str(dateHelp), "planned": str(dateHelp),
-                      "estimate_minutes": int("Estimated duration")], required: ["title"]), readOnly: false) { a in
+                      "estimate_minutes": int("Estimated duration"),
+                      "parent": str("Put it inside this action or project (id): a subtask / nested node. Overrides project."),
+                      "external_ref": str("Your own stable id, e.g. \"mindmapper:<node>\". If a task with it exists, that task is returned unchanged (existing: true) instead of creating a duplicate."),
+                      "literal": bool("Use the title exactly as given (no #tag ::project ! due: shorthand)")], required: ["title"]), readOnly: false) { a in
         let s = snapshot()
-        let parsed = QuickEntryParser(snapshot: s).parse(a["title"]?.string ?? "")
+        if let ref = a["external_ref"]?.string, !ref.isEmpty, let existing = findByExternalRef(s, ref) {
+            guard case .object(var o) = taskJSON(s, existing, full: true) else { return taskJSON(s, existing, full: true) }
+            o["existing"] = .bool(true)
+            return .object(o)
+        }
+        let raw = a["title"]?.string ?? ""
+        let parsed = (a["literal"]?.bool ?? false) ? QuickEntryParser.Result(title: raw.trimmingCharacters(in: .whitespacesAndNewlines))
+                                                    : QuickEntryParser(snapshot: s).parse(raw)
         guard !parsed.title.isEmpty else { throw ToolError.message("Title is empty.") }
+        let parentID = a["parent"]?.string.flatMap { $0.isEmpty ? nil : $0 }
+        if let parentID, s.tasks[parentID] == nil { throw ToolError.message("No task or project with id \(parentID) for parent.") }
         let deferD = try parseDate(s, a["defer"], hour: 0), dueD = try parseDate(s, a["due"], hour: 17), plannedD = try parseDate(s, a["planned"], hour: 9)
         var newID = ""
         commit("MCP: Create Task") { tx in
@@ -279,6 +300,7 @@ let tools: [Tool] = [
                 else if pname.contains(":") { n.parent = tx.createProject(path: pname) }
                 else { var p = NewTask(title: pname); p.isProject = true; n.parent = tx.createTask(p) }
             } else { n.parent = parsed.projectID }
+            if let parentID { n.parent = parentID }
             n.flagged = (a["flagged"]?.bool ?? false) || parsed.flagged
             n.deferDate = (deferD ?? nil) ?? parsed.deferDate
             n.dueDate = (dueD ?? nil) ?? parsed.dueDate
@@ -288,6 +310,7 @@ let tools: [Tool] = [
             for name in (a["tags"]?.array?.compactMap(\.string) ?? []) + parsed.unknownTags { tagIDs.insert(findOrCreateTag(s, name, tx: &tx)) }
             n.tagIDs = Array(tagIDs)
             newID = tx.createTask(n)
+            if let ref = a["external_ref"]?.string, !ref.isEmpty { tx.setTask(newID, F.externalRef, .string(ref)) }
         }
         let after = snapshot()
         return taskJSON(after, try findTask(after, newID), full: true)
@@ -297,10 +320,16 @@ let tools: [Tool] = [
          schema: obj(["id": str("Task id"), "title": str("New title"), "note": str("Replace the note"), "append_note": str("Append to the note"),
                       "project": str("Move to project (\"Folder : Project\" or fuzzy); \"Inbox\" moves to the inbox"),
                       "add_tags": strArray("Tags to add"), "remove_tags": strArray("Tags to remove"), "flagged": bool("Flag or unflag"),
-                      "defer": str(dateHelp), "due": str(dateHelp), "planned": str(dateHelp), "estimate_minutes": int("Estimate (0 clears)")],
+                      "defer": str(dateHelp), "due": str(dateHelp), "planned": str(dateHelp), "estimate_minutes": int("Estimate (0 clears)"),
+                      "parent": str("Move inside this action or project (id); \"\" = to the top of its project (or Inbox)"),
+                      "external_ref": str("Set your stable id (\"\" clears)")],
          required: ["id"]), readOnly: false) { a in
         let s = snapshot()
         let t = try findTask(s, a["id"]?.string)
+        if let p = a["parent"]?.string, !p.isEmpty {
+            guard s.tasks[p] != nil else { throw ToolError.message("No task or project with id \(p) for parent.") }
+            if p == t.id || s.ancestors(of: p).contains(t.id) { throw ToolError.message("Can't move an item inside itself.") }
+        }
         let deferD = try parseDate(s, a["defer"], hour: 0), dueD = try parseDate(s, a["due"], hour: 17), plannedD = try parseDate(s, a["planned"], hour: 9)
         var target: String??
         if let pname = a["project"]?.string {
@@ -323,6 +352,10 @@ let tools: [Tool] = [
             if let d = dueD { tx.setTask(t.id, F.dueDate, .date(d)) }
             if let d = plannedD { tx.setTask(t.id, F.plannedDate, .date(d)) }
             if let e = a["estimate_minutes"]?.int { tx.setTask(t.id, F.estimate, e > 0 ? .optional(e) : .null) }
+            if let p = a["parent"]?.string, a["project"] == nil {
+                if p.isEmpty { tx.move(t.id, to: s.info[t.id]?.projectID) } else { tx.move(t.id, to: p) }
+            }
+            if let ref = a["external_ref"]?.string { tx.setTask(t.id, F.externalRef, ref.isEmpty ? .null : .string(ref)) }
         }
         let after = snapshot()
         return taskJSON(after, try findTask(after, t.id), full: true)
@@ -347,9 +380,11 @@ let tools: [Tool] = [
     Tool(name: "create_project", title: "Create project",
          description: "Create a project from \"Folder : Sub : Name\" (missing folders are created). Returns the existing one if it already exists.",
          schema: obj(["path": str("e.g. \"Common : Домашние дела\""), "type": str("parallel (default), sequential or single_actions"),
-                      "note": str("Project note")], required: ["path"]), readOnly: false) { a in
+                      "note": str("Project note"),
+                      "external_ref": str("Your stable id; an existing project with it is returned unchanged")], required: ["path"]), readOnly: false) { a in
         let s = snapshot()
         let path = a["path"]?.string ?? ""
+        if let ref = a["external_ref"]?.string, !ref.isEmpty, let existing = findByExternalRef(s, ref) { return taskJSON(s, existing, full: true) }
         if let existing = s.project(atPath: path) { return taskJSON(s, existing, full: true) }
         var id = ""
         commit("MCP: Create Project") { tx in
@@ -360,9 +395,36 @@ let tools: [Tool] = [
             default: break
             }
             if let n = a["note"]?.string { tx.setTask(id, F.note, .string(n)) }
+            if let ref = a["external_ref"]?.string, !ref.isEmpty { tx.setTask(id, F.externalRef, .string(ref)) }
         }
         let after = snapshot()
         return taskJSON(after, try findTask(after, id), full: true)
+    },
+    Tool(name: "find_by_external_ref", title: "Find by external ref",
+         description: "Look up items by your own stable id: an exact ref (\"mindmapper:abc\"), or all items whose ref starts with a prefix (\"mindmapper:\"). Includes completed/dropped.",
+         schema: obj(["ref": str("Exact external ref"), "prefix": str("Ref prefix"), "limit": int("Max items (default 500)")]), readOnly: true) { a in
+        let s = snapshot()
+        let hits: [TaskItem]
+        if let ref = a["ref"]?.string, !ref.isEmpty { hits = s.tasks.values.filter { $0.externalRef == ref } }
+        else if let p = a["prefix"]?.string, !p.isEmpty { hits = s.tasks.values.filter { $0.externalRef?.hasPrefix(p) == true } }
+        else { throw ToolError.message("Give ref or prefix.") }
+        var args = a; if args["limit"] == nil { args["limit"] = 500 }
+        return limited(hits.sorted { $0.id < $1.id }, s, args)
+    },
+    Tool(name: "changes_since", title: "Changes since",
+         description: "Items changed after a moment (any device): completed, dropped, renamed, moved, edited. Each has `changed`, `status`, `completed`/`dropped`, `external_ref`. Pass the previous call's `now` next time.",
+         schema: obj(["since": str("ISO 8601 moment"), "external_ref_prefix": str("Only items whose external_ref starts with this, e.g. \"mindmapper:\""),
+                      "limit": int("Max items (default 500)")], required: ["since"]), readOnly: true) { a in
+        let s = snapshot()
+        guard let str = a["since"]?.string, let since = isoMS.date(from: str) ?? iso.date(from: str) ?? ISO8601DateFormatter().date(from: str) else {
+            throw ToolError.message("since must be ISO 8601, e.g. 2026-10-24T09:00:00+11:00")
+        }
+        let prefix = a["external_ref_prefix"]?.string ?? ""
+        let hits = s.tasks.values.filter { $0.modifiedAt > since && (prefix.isEmpty || $0.externalRef?.hasPrefix(prefix) == true) }
+            .sorted { $0.modifiedAt < $1.modifiedAt }
+        let limit = a["limit"]?.int ?? 500
+        return .object(["now": .string(isoMS.string(from: Date())), "count": .number(Double(hits.count)),
+                        "items": .array(hits.prefix(limit).map { taskJSON(s, $0) }), "truncated": .bool(hits.count > limit)])
     },
     Tool(name: "mark_reviewed", title: "Mark project reviewed", description: "Mark a project reviewed (sets the next review date).",
          schema: obj(["project": str("Project id, \"Folder : Project\" or fuzzy name")], required: ["project"]), readOnly: false) { a in

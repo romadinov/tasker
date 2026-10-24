@@ -9,7 +9,9 @@ import Foundation
 /// - `project`: "Folder : Project" or a fuzzy name; `tags`: comma-separated names
 /// - `flagged`: 1/true; `due`, `defer`, `planned`: ISO 8601 or natural ("fri", "+3d")
 /// - `quick=1`: save straight to Uberdoer without showing Quick Entry
-/// - `x-success`: URL opened after a quick save (return to the calling app)
+/// - `x-success`: URL opened after a quick save (return to the calling app), with `id=<task id>` added
+/// - `external_ref`: caller's stable id; with `quick=1` an existing item with it is reused (no duplicate)
+/// - `parent`: put it inside this action/project id (nested item)
 public struct AddRequest: Equatable, Sendable {
     public var title = ""
     public var note = ""
@@ -22,6 +24,8 @@ public struct AddRequest: Equatable, Sendable {
     public var planned: String?
     public var quick = false
     public var xSuccess: URL?
+    public var externalRef: String?
+    public var parent: String?
 
     public init?(url: URL) {
         guard ["uberdoer", "throughline", "tasker"].contains(url.scheme?.lowercased() ?? ""), url.host?.lowercased() == "add" || url.path.lowercased() == "/add" || url.path.lowercased() == "add",
@@ -38,7 +42,17 @@ public struct AddRequest: Equatable, Sendable {
         due = value("due"); deferDate = value("defer"); planned = value("planned")
         quick = ["1", "true", "yes"].contains(value("quick")?.lowercased() ?? "")
         xSuccess = value("x-success").flatMap(URL.init(string:))
+        externalRef = value("external_ref") ?? value("externalref")
+        parent = value("parent")
         guard !title.isEmpty || !note.isEmpty || self.url != nil else { return nil }
+    }
+
+    /// `x-success` with the created/reused task's id added as `id=…`, so the caller can store it.
+    public func successURL(id: String?) -> URL? {
+        guard let x = xSuccess else { return nil }
+        guard let id, var c = URLComponents(url: x, resolvingAgainstBaseURL: false) else { return x }
+        c.queryItems = (c.queryItems ?? []) + [URLQueryItem(name: "id", value: id)]
+        return c.url ?? x
     }
 
     /// Note as stored: the link first (so it's the first visible line), then the text.

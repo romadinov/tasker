@@ -36,6 +36,8 @@ public enum F {
     /// Kanban: the stage id an action is in, and its order key within that column.
     public static let stage = "stage"
     public static let stageOrder = "stageOrder"
+    /// A companion app's own id for this item ("mindmapper:<node>", "jinnie:<id>"), for idempotent upserts.
+    public static let externalRef = "externalRef"
     public static let tagPrefix = "tag:"
     /// One finished pomodoro: "pomo:<id>" → {"at": date, "min": minutes}. One register per session,
     /// so sessions logged on two devices both survive.
@@ -118,6 +120,7 @@ public struct TaskItem: Identifiable, Hashable, Sendable {
     // Kanban
     public var stageID: String?
     public var stageOrder: String = "V"
+    public var externalRef: String?
     /// Finished pomodoros on this action (newest last).
     public var focusSessions: [FocusSession] = []
     public var pomodoroCount: Int { focusSessions.count }
@@ -160,6 +163,7 @@ public struct TaskItem: Identifiable, Hashable, Sendable {
             case F.lastReview: lastReviewDate = v.date
             case F.stage: stageID = v.string
             case F.stageOrder: stageOrder = v.string ?? "V"
+            case F.externalRef: externalRef = v.string.flatMap { $0.isEmpty ? nil : $0 }
             default:
                 if field.hasPrefix(F.pomodoroPrefix), let at = v["at"]?.date {
                     focusSessions.append(FocusSession(at: at, minutes: v["min"]?.int ?? 25))
