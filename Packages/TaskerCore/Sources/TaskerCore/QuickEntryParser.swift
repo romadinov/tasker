@@ -33,7 +33,8 @@ public struct QuickEntryParser {
         for token in text.split(separator: " ", omittingEmptySubsequences: true).map(String.init) {
             let lower = token.lowercased()
             if token == "!" { r.flagged = true; continue }
-            if token.hasPrefix("#"), token.count > 1 {
+            // "#tag" must start with a letter: "#116" or "(#42)" are issue references, kept in the title.
+            if token.hasPrefix("#"), token.count > 1, token.dropFirst().first?.isLetter == true {
                 let name = String(token.dropFirst())
                 if let id = matchTag(name) { if !r.tagIDs.contains(id) { r.tagIDs.append(id) } } else { r.unknownTags.append(name) }
                 continue

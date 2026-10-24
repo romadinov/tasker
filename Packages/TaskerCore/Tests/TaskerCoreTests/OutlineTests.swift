@@ -181,3 +181,12 @@ import Testing
         #expect(s.snapshot().childIDs("P") == ["A"])
     }
 }
+
+@Suite struct ShorthandTests {
+    @Test func issueNumbersStayInTheTitle() throws {
+        let s = try tempStore()
+        let r = QuickEntryParser(snapshot: s.snapshot()).parse("Push builds (fixes #116, #117) #phone")
+        #expect(r.title == "Push builds (fixes #116, #117)")
+        #expect(r.unknownTags == ["phone"])
+    }
+}
