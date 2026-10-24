@@ -4,6 +4,8 @@
 > only to describe Uberdoer's import feature.
 
 A GTD-style task manager for Mac, iPhone and iPad, with OmniFocus import, and sync built so it can't get stuck.
+Beyond OmniFocus: a Kanban Board, Pomodoro timer, Analytics, speech entry (on-device Whisper) and an API for
+companion apps. Full behaviour and contracts: [docs/SPEC.md](docs/SPEC.md); lessons learnt: [docs/LESSONS.md](docs/LESSONS.md).
 
 ## Why sync keeps working
 
@@ -48,10 +50,10 @@ will kill it. For TestFlight (iPhone/iPad) and notarized Mac releases see [docs/
 2. **Install the skill** — teaches Claude the Uberdoer workflows (capture, Inbox processing, plan today,
    weekly review) and safety rules (confirm before completing/dropping or bulk edits):
    ```sh
-   mkdir -p ~/.claude/skills/tasker
-   cp skills/tasker/SKILL.md ~/.claude/skills/tasker/
+   mkdir -p ~/.claude/skills/uberdoer
+   cp skills/uberdoer/SKILL.md ~/.claude/skills/uberdoer/
    ```
-   Claude Desktop / claude.ai: zip the `skills/tasker` folder and upload it under Settings → Capabilities → Skills.
+   Claude Desktop / claude.ai: zip the `skills/uberdoer` folder and upload it under Settings → Capabilities → Skills.
 3. Try: "what's on my plate today?", "process my inbox", "add: call Anna tomorrow #phone",
    "do my weekly review".
 
@@ -122,7 +124,7 @@ For companion apps: `create_task`/`create_project` take `external_ref` (your sta
 
 ## Sending items from other apps (`uberdoer://add`)
 
-Mac, iPhone and iPad register the `tasker` URL scheme:
+Mac, iPhone and iPad register the `uberdoer` URL scheme (`throughline://` and `tasker://` still work):
 
 ```
 uberdoer://add?title=<text>&note=<text>&url=<link>&project=<"Folder : Project" or name>&tags=<a,b>

@@ -34,19 +34,27 @@ claude mcp add --scope user uberdoer -- "/Applications/Uberdoer.app/Contents/Mac
 
 | Read | Write |
 |---|---|
-| `list_perspectives`, `get_perspective_items {perspective, limit}` | `create_task {title, note, project, tags, flagged, defer, due, planned, estimate_minutes}` |
-| `search_tasks {query, include_completed, limit}` | `update_task {id, title, note, append_note, project, add_tags, remove_tags, flagged, defer, due, planned, estimate_minutes}` |
+| `list_perspectives`, `get_perspective_items {perspective, limit}` | `create_task {title, note, project, parent, tags, flagged, defer, due, planned, estimate_minutes, external_ref, literal}` |
+| `search_tasks {query, include_completed, limit}` | `update_task {id, title, note, append_note, project, parent, add_tags, remove_tags, flagged, defer, due, planned, estimate_minutes, external_ref}` |
 | `get_task {id}` (note + children) | `complete_task {id, undo}`, `drop_task {id, undo}` |
-| `list_projects {folder, include_completed}`, `list_tags` | `create_project {path, type, note}`, `mark_reviewed {project}` |
+| `list_projects {folder, include_completed}`, `list_tags` | `create_project {path, type, note, external_ref}`, `mark_reviewed {project}` |
+| `find_by_external_ref {ref \| prefix}`, `changes_since {since, external_ref_prefix}` | |
+
+`parent` nests an action inside another action or project (subtasks). `external_ref` is a caller's stable id: creating
+again with the same ref returns the existing item (`existing: true`). `literal: true` keeps the title exactly as given.
 
 Dates accept ISO 8601 or natural forms: `today`, `tomorrow`, `fri`, `+3d`, `+2w`, `2026-11-02`; `""` clears.
-`create_task` titles may also use shorthand: `#tag ::project ! due:fri ~30m`.
+`create_task` titles may also use shorthand: `#tag ::project ! due:fri ~30m` (`#` must be followed by a letter, so
+`#116` stays text). Pass `literal: true` when the title should not be parsed.
+Completing a project or action group also completes all its open actions (undo reopens them).
+`uberdoer://task/<id>` opens a task in the app; mention it when giving the user a link.
 
 ## Ground rules
 
 1. **Find ids first.** Never guess an id — use `search_tasks`, `get_perspective_items` or `list_projects`.
    If a search returns several plausible matches, ask which one.
-2. **Confirm before completing, dropping or bulk changes.** Creating a single task the user dictated, or a single
+2. **Requests from other Claude sessions to add a reminder for the user: just add it** (and reply with the id).
+   **Otherwise confirm before completing, dropping or bulk changes.** Creating a single task the user dictated, or a single
    explicit edit ("flag the dentist task"), needs no confirmation. Anything touching more than one item, or
    completing/dropping, gets a short summary and a yes first. Both complete and drop are reversible with `undo: true`.
 3. **Keep the user's wording** for titles and notes. Put links in the note, first.
