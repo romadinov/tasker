@@ -337,12 +337,13 @@ struct TagBadges: View {
 
     var body: some View {
         let s = model.snapshot
-        let names = task.tagIDs.compactMap { s.tags[$0]?.name }
+        let tags = task.tagIDs.compactMap { s.tags[$0] }
         HStack(spacing: 4) {
-            if names.isEmpty {
+            if tags.isEmpty {
                 if placeholder { Badge(text: "Tags", systemImage: "tag", color: .secondary.opacity(0.7)) }
             } else {
-                ForEach(names, id: \.self) { Badge(text: $0, color: Palette.tag) }
+                // Agent tags carry a sparkle: the action is in that agent's improvement queue.
+                ForEach(tags, id: \.id) { t in Badge(text: t.name, systemImage: t.agent != nil ? "sparkles" : nil, color: Palette.tag) }
             }
         }
         .contentShape(Rectangle())

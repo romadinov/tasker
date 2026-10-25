@@ -15,7 +15,9 @@ let instructions = """
 Uberdoer is the user's task manager. Inbox holds unfiled actions; projects live in folders \
 ("Folder : Project"); tags are contexts; perspectives are saved views. Dates accept ISO 8601 or natural forms \
 like "today", "tomorrow", "fri", "+3d", "2026-11-02". Prefer search_tasks/get_perspective_items to find ids \
-before updating. Completing or dropping is reversible from the app.
+before updating. Completing or dropping is reversible from the app. Agent tags link a tag to an app built \
+with agents: agent_tasks lists that app's open improvement tasks; when you finish one, complete it with \
+complete_task (comment: what you changed).
 """
 
 // MARK: - I/O
@@ -134,7 +136,9 @@ func findByExternalRef(_ s: Snapshot, _ ref: String) -> TaskItem? {
 }
 
 func findOrCreateTag(_ s: Snapshot, _ name: String, tx: inout Tx) -> String {
-    if let t = s.tags.values.first(where: { $0.name.compare(name, options: .caseInsensitive) == .orderedSame }) { return t.id }
+    // Ordinary tags first: tagging by a name must not send an item to an agent's queue by accident.
+    let named = s.tags.values.filter { $0.name.compare(name, options: .caseInsensitive) == .orderedSame }
+    if let t = named.first(where: { $0.agent == nil }) ?? named.first { return t.id }
     return tx.createTag(name)
 }
 
@@ -265,6 +269,7 @@ let tools: [Tool] = [
         return .array(s.orderedTags.map { e in
             .object(["id": .string(e.tag.id), "name": .string(e.tag.name), "status": .string(e.tag.status.rawValue),
                      "parent": e.tag.position.parent.flatMap { s.tags[$0]?.name }.map(JSON.string) ?? .null,
+                     "agent": e.tag.agent.map(JSON.string) ?? .null,
                      "available": .number(Double((s.tasksByTag[e.tag.id] ?? []).filter { s.info[$0]?.isAvailable == true }.count))])
         })
     },
@@ -360,12 +365,27 @@ let tools: [Tool] = [
         let after = snapshot()
         return taskJSON(after, try findTask(after, t.id), full: true)
     },
+    Tool(name: "agent_tasks", title: "Agent tasks",
+         description: "Open improvement tasks for an app built with agents: actions tagged with a tag linked to that agent (see list_tags 'agent'). Without 'agent', lists the known agents. Complete each with complete_task (comment: the fix) when it's done.",
+         schema: obj(["agent": str("Agent id, e.g. \"uberdoer\", \"scriptorium\" (as in ~/Dev/agent-feedback/apps.json)")]), readOnly: true) { a in
+        let s = snapshot()
+        guard let agent = a["agent"]?.string?.lowercased(), !agent.isEmpty else {
+            return .array(s.agentApps.map { app in .object(["id": .string(app.id), "name": .string(app.name),
+                                                            "open": .number(Double(s.agentTasks(app.id).count))]) })
+        }
+        return .object(["agent": .string(agent), "items": .array(s.agentTasks(agent).map { taskJSON(s, $0, full: true) })])
+    },
     Tool(name: "complete_task", title: "Complete task",
-         description: "Mark an action or project complete (repeating actions advance to the next occurrence). undo=true marks it incomplete.",
-         schema: obj(["id": str("Task id"), "undo": bool("Mark incomplete instead")], required: ["id"]), readOnly: false) { a in
+         description: "Mark an action or project complete (repeating actions advance to the next occurrence). undo=true marks it incomplete. comment is appended to the note (e.g. what was done).",
+         schema: obj(["id": str("Task id"), "undo": bool("Mark incomplete instead"), "comment": str("Appended to the note, e.g. the fix")], required: ["id"]), readOnly: false) { a in
         let s = snapshot()
         let t = try findTask(s, a["id"]?.string)
-        commit("MCP: Complete") { tx in if a["undo"]?.bool == true { tx.uncomplete(t.id) } else { tx.complete(t.id) } }
+        commit("MCP: Complete") { tx in
+            if let c = a["comment"]?.string?.trimmingCharacters(in: .whitespacesAndNewlines), !c.isEmpty {
+                tx.setTask(t.id, F.note, .string(t.note.isEmpty ? c : t.note + "\n\n" + c))
+            }
+            if a["undo"]?.bool == true { tx.uncomplete(t.id) } else { tx.complete(t.id) }
+        }
         let after = snapshot()
         return taskJSON(after, try findTask(after, t.id))
     },
@@ -512,6 +532,27 @@ func handle(_ msg: [String: JSON]) {
         respond(callTool(params))
     default:
         fail(id, -32601, "Method not found: \(method)")
+    }
+}
+
+// Command line (for scripts such as ~/Dev/agent-feedback/feedback.swift), instead of the stdio server:
+//   uberdoer-mcp agent-tasks [<agent>]            → JSON (agent_tasks)
+//   uberdoer-mcp complete <id> [<comment>]        → JSON (complete_task)
+let cli = Array(CommandLine.arguments.dropFirst())
+if let command = cli.first {
+    func runTool(_ name: String, _ args: [String: JSON]) -> Never {
+        let result = callTool(["name": .string(name), "arguments": .object(args)])
+        let text = result.object?["content"]?.array?.first?.object?["text"]?.string ?? ""
+        print(text)
+        exit(result.object?["isError"]?.bool == true ? 1 : 0)
+    }
+    switch command {
+    case "agent-tasks": runTool("agent_tasks", cli.count > 1 ? ["agent": .string(cli[1])] : [:])
+    case "complete" where cli.count > 1:
+        runTool("complete_task", ["id": .string(cli[1])].merging(cli.count > 2 ? ["comment": .string(cli[2])] : [:]) { a, _ in a })
+    default:
+        print("Usage: uberdoer-mcp [agent-tasks [<agent>] | complete <id> [<comment>]]  (no arguments: stdio MCP server)")
+        exit(1)
     }
 }
 

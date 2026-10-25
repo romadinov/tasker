@@ -38,6 +38,7 @@ final class MacAppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         MainActor.assumeIsolated {
             AppModel.shared.start()
+            AppModel.shared.syncAgentRegistry() // agent tags for the apps in ~/Dev/agent-feedback
             HotKeys.apply()
             _ = PomodoroTimer.shared // resumes a running pomodoro, logs one that ended while quit
             if DeveloperBuild.isDeveloper { CrashReporter.shared.start() } // crash/hang reports → iCloud container › Crash reports

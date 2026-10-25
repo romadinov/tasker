@@ -18,7 +18,7 @@ A GTD task manager for Mac, iPhone and iPad that replaces OmniFocus for one user
 |---|---|
 | Inbox | Unfiled actions, outline (subtasks). Filed/completed items stay in place until Clean Up. |
 | Projects | Folders → projects → actions outline; sidebar tree (context menu: Complete Project / Mark Active, Status, Rename, Convert to Action; a project completed there stays listed until Clean Up or a view change); Remaining/Available/Everything filter. |
-| Tags | Actions per tag; sidebar tag tree. |
+| Tags | Actions per tag; sidebar tag tree. Agent tags (developer builds): a tag linked to an app built with agents (Tag inspector → Agent, or the tag's context menu → Agent / New Agent Tag); its actions are that agent's improvement tasks. |
 | Forecast | Past (overdue), a day strip (12 days) and Future; calendar events; **Today** also lists available flagged actions. Order: flagged & available, other available, not yet available. The selected day follows "today" unless the user picks another day. |
 | Flagged | Remaining, unblocked flagged actions grouped by project. |
 | Review | Projects whose review is due; Mark Reviewed advances. |
@@ -153,8 +153,9 @@ Development environment, archived builds Production. Daily local backups; Export
 Read: `list_perspectives`, `get_perspective_items`, `search_tasks {query, include_completed, limit=50}` (title + note,
 either layout), `get_task`, `list_projects`, `list_tags`, `find_by_external_ref {ref | prefix}`,
 `changes_since {since, external_ref_prefix} → {now, items}` (ms-precision cursor).
+Agents: `agent_tasks {agent}`. CLI (no stdio server): `uberdoer-mcp agent-tasks [<agent>]`, `uberdoer-mcp complete <id> [<comment>]`.
 Write: `create_task {…, parent, external_ref, literal}` (existing `external_ref` → returned unchanged with
-`existing: true`), `update_task {…, parent, external_ref}`, `complete_task`/`drop_task {undo}`,
+`existing: true`), `update_task {…, parent, external_ref}`, `complete_task {id, undo, comment}`/`drop_task {undo}`,
 `create_project {path, type, note, external_ref}`, `mark_reviewed`.
 Task JSON includes `changed` (ms), `status`, `completed`, `dropped`, `external_ref`, `parent`.
 `TASKER_DB=/path` points the server (and the app) at another database.
@@ -184,6 +185,16 @@ development-signed builds (`DeveloperBuild.isDeveloper`: DEBUG or get-task-allow
 Handling: `swift ~/Dev/agent-feedback/feedback.swift notes uberdoer` / `crashes uberdoer`, fix, ship, then record.
 `TASKER_DEBUG_ACTION=feedback TASKER_FEEDBACK_DIR=<dir>` writes a test note elsewhere (DEBUG).
 
+**Agent tags.** Tag field `agent` = app id from `~/Dev/agent-feedback/apps.json`. At launch the Mac app (developer
+builds) mirrors that registry into the synced setting `agents` and creates "Agents : <Name> agent" (ids `agents`,
+`agent-<id>`, deterministic so devices merge) for each agent seen for the first time; a deleted or renamed agent tag
+stays that way. Names end in "agent" so lookups by name never hit them by accident (Jinnie's own tag is "Jinnie").
+`Snapshot.agentTasks(id)` = remaining actions tagged with an agent tag or a tag under it. MCP `agent_tasks {agent}`,
+`complete_task {id, comment}` (comment appended to the note); CLI `uberdoer-mcp agent-tasks [<agent>]` and
+`uberdoer-mcp complete <id> [<comment>]`, which `feedback.swift` uses: `notes <app>` lists them, `check` and the router
+count them, marking one completes it in Uberdoer. Agents complete their tasks when done (skill, README, MCP
+instructions).
+
 ## 4. Builds and install
 
 - Mac: `scripts/install-mac.sh` → optimised (`-O`, whole-module) Debug-config build → `/Applications/Uberdoer.app`
@@ -194,4 +205,4 @@ Handling: `swift ~/Dev/agent-feedback/feedback.swift notes uberdoer` / `crashes 
   `TASKER_TICK_TEST`, `TASKER_WHISPER_TEST=a.wav,…`; always with `TASKER_DB=<copy> TASKER_NO_SYNC=1`.
 - iCloud only re-reads `NSUbiquitousContainers` (the iCloud Drive folder) when `CURRENT_PROJECT_VERSION` changes; bump
   it in `project.yml` when that changes. iOS builds that add a capability need `-allowProvisioningUpdates`.
-- Core tests: `cd Packages/TaskerCore && swift test` (58 tests incl. randomized 3-replica convergence).
+- Core tests: `cd Packages/TaskerCore && swift test` (61 tests incl. randomized 3-replica convergence).

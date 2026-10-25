@@ -250,7 +250,7 @@ struct TagTree: View {
         List(selection: $model.tagFocus) {
             ForEach(ordered, id: \.tag.id) { e in
                 HStack {
-                    Image(systemName: e.tag.status == .onHold ? "pause.circle" : "tag").foregroundStyle(Palette.tag)
+                    Image(systemName: e.tag.status == .onHold ? "pause.circle" : (e.tag.agent != nil ? "sparkles" : "tag")).foregroundStyle(Palette.tag)
                     RenamableName(id: e.tag.id, name: e.tag.name, placeholder: "Untitled tag",
                                   color: e.tag.status == .active ? .primary : .secondary)
                     Spacer()
@@ -262,6 +262,13 @@ struct TagTree: View {
                 .contextMenu {
                     Button("Rename") { model.renamingID = e.tag.id }
                     Menu("Organize") { OrganizeMenuItems(ids: model.tagFocus.contains(e.tag.id) ? Array(model.tagFocus) : [e.tag.id]) }
+                    if DeveloperBuild.isDeveloper {
+                        Divider()
+                        Menu("Agent") { AgentMenuItems(tag: e.tag) }
+                        Menu("New Agent Tag") {
+                            ForEach(s.agentApps) { app in Button(app.name) { model.newAgentTag(app) } }
+                        }
+                    }
                 }
             }
             .onMove { from, to in model.moveTags(from, to: to, in: ordered) }

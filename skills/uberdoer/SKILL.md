@@ -36,9 +36,10 @@ claude mcp add --scope user uberdoer -- "/Applications/Uberdoer.app/Contents/Mac
 |---|---|
 | `list_perspectives`, `get_perspective_items {perspective, limit}` | `create_task {title, note, project, parent, tags, flagged, defer, due, planned, estimate_minutes, external_ref, literal}` |
 | `search_tasks {query, include_completed, limit}` | `update_task {id, title, note, append_note, project, parent, add_tags, remove_tags, flagged, defer, due, planned, estimate_minutes, external_ref}` |
-| `get_task {id}` (note + children) | `complete_task {id, undo}`, `drop_task {id, undo}` |
+| `get_task {id}` (note + children) | `complete_task {id, undo, comment}`, `drop_task {id, undo}` |
 | `list_projects {folder, include_completed}`, `list_tags` | `create_project {path, type, note, external_ref}`, `mark_reviewed {project}` |
 | `find_by_external_ref {ref \| prefix}`, `changes_since {since, external_ref_prefix}` | |
+| `agent_tasks {agent}` (no agent: known agents with open counts) | |
 
 `parent` nests an action inside another action or project (subtasks). `external_ref` is a caller's stable id: creating
 again with the same ref returns the existing item (`existing: true`). `literal: true` keeps the title exactly as given.
@@ -48,6 +49,12 @@ Dates accept ISO 8601 or natural forms: `today`, `tomorrow`, `fri`, `+3d`, `+2w`
 `#116` stays text). Pass `literal: true` when the title should not be parsed.
 Completing a project or action group also completes all its open actions (undo reopens them).
 `uberdoer://task/<id>` opens a task in the app; mention it when giving the user a link.
+
+**Agent tags.** Each app built with agents (registered in `~/Dev/agent-feedback/apps.json`: Scriptorium, Mindmapper,
+Jinnie, Uberdoer…) has a tag "Agents : <Name> agent" (`list_tags` shows its `agent` id). Actions with it are that app's
+improvement tasks from the user. If you work on that app: list them with `agent_tasks {agent: "<id>"}` (or
+`swift ~/Dev/agent-feedback/feedback.swift notes <id>`), fix them, and **complete each one as soon as it's done**
+with `complete_task {id, comment: "<what changed, commit>"}` — don't wait to be asked.
 
 ## Ground rules
 

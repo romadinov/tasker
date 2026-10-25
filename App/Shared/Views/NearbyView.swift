@@ -152,6 +152,11 @@ struct TagInspector: View {
                         IconSegments(options: [(TagStatus.active, "play.circle", "Active"), (.onHold, "pause.circle", "On Hold"), (.dropped, "minus.circle", "Dropped")],
                                      selection: tag.status) { v in model.perform("Tag Status") { $0.setTagStatus(id, v) } }
                     }
+                    if DeveloperBuild.isDeveloper {
+                        InspectorSection(title: "Agent", trailing: tag.agent.map { model.agentName($0) } ?? "None") {
+                            AgentPicker(tag: tag)
+                        }
+                    }
                     InspectorSection(title: "Location", trailing: tag.location.map { $0.kind == .kind ? "Kind of place" : "Specific place" } ?? "None") {
                         TagLocationEditor(tag: tag)
                     }

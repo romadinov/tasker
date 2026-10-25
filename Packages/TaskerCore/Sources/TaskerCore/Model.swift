@@ -33,6 +33,8 @@ public enum F {
     public static let sortBy = "sortBy"
     public static let value = "value"
     public static let location = "location"
+    /// Tag → the agent (app id in ~/Dev/agent-feedback/apps.json) whose improvement queue its actions join.
+    public static let agent = "agent"
     /// Kanban: the stage id an action is in, and its order key within that column.
     public static let stage = "stage"
     public static let stageOrder = "stageOrder"
@@ -206,6 +208,8 @@ public struct Tag: Identifiable, Hashable, Sendable {
     public var positionStamp: HLC = .zero
     public var status: TagStatus = .active
     public var location: TagLocation?
+    /// Agent id ("scriptorium", "uberdoer"): actions with this tag are that agent's improvement tasks.
+    public var agent: String?
     public var deleted = false
 
     public init(id: String) { self.id = id }
@@ -216,6 +220,7 @@ public struct Tag: Identifiable, Hashable, Sendable {
         if let p = fields[F.pos] { position = Position(json: p.value); positionStamp = p.hlc }
         status = fields[F.status]?.value.string.flatMap(TagStatus.init(rawValue:)) ?? .active
         location = fields[F.location]?.value.decode(TagLocation.self)
+        agent = fields[F.agent]?.value.string.flatMap { $0.isEmpty ? nil : $0 }
         deleted = fields[F.deleted]?.value.bool ?? false
     }
 }
