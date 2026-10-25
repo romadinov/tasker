@@ -443,6 +443,12 @@ final class AppModel {
         if reopen { recentlyCompleted.subtract(ids) } else { recentlyCompleted.formUnion(tasks.filter { $0.repeatRule == nil }.map(\.id)) }
     }
 
+    /// Project status from the sidebar; completed or dropped projects stay listed until Clean Up or a view change.
+    func setProjectStatus(_ ids: [String], _ status: ProjectStatus) {
+        perform(status == .done ? "Complete" : "Change Status") { tx in for id in ids { tx.setProjectStatus(id, status) } }
+        if status == .done || status == .dropped { recentlyCompleted.formUnion(ids) } else { recentlyCompleted.subtract(ids) }
+    }
+
     func toggleComplete(_ id: String) {
         guard let t = snapshot.tasks[id] else { return }
         if t.isCompleted && t.repeatRule == nil {

@@ -144,7 +144,8 @@ struct ProjectTree: View {
                     if open { walk(kids, depth + 1) }
                 } else if let p = s.tasks[id], p.isProject {
                     let remaining = s.info[id]?.isRemaining == true
-                    if !remaining && model.filter != .all && !model.projectFocus.contains(id) { continue }
+                    if !remaining && model.filter != .all && !model.projectFocus.contains(id)
+                        && !model.recentlyCompleted.contains(id) { continue }
                     out.append(Node(id: id, depth: depth, isFolder: false, hasChildren: false, open: false))
                 }
             }
@@ -187,6 +188,20 @@ struct ProjectTree: View {
                     Button("New Folder") { model.newFolder() }
                     Button("Rename") { model.renamingID = n.id }
                     if !n.isFolder { Button("Convert to Action") { model.convertToAction(n.id) } }
+                    if !n.isFolder, let p = s.tasks[n.id] {
+                        let ids = model.projectFocus.contains(n.id) ? model.projectFocus.filter { s.tasks[$0]?.isProject == true } : [n.id]
+                        Divider()
+                        Button(p.status == .done ? "Mark Active" : (ids.count > 1 ? "Complete Projects" : "Complete Project")) {
+                            model.setProjectStatus(Array(ids), p.status == .done ? .active : .done)
+                        }
+                        Menu("Status") {
+                            ForEach(ProjectStatus.allCases, id: \.self) { st in
+                                Button { model.setProjectStatus(Array(ids), st) } label: {
+                                    if p.status == st { Label(st.label, systemImage: "checkmark") } else { Text(st.label) }
+                                }
+                            }
+                        }
+                    }
                     Divider()
                     Menu("Organize") { OrganizeMenuItems(ids: model.projectFocus.contains(n.id) ? Array(model.projectFocus) : [n.id]) }
                     Divider()

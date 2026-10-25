@@ -17,7 +17,7 @@ A GTD task manager for Mac, iPhone and iPad that replaces OmniFocus for one user
 | View | What it shows |
 |---|---|
 | Inbox | Unfiled actions, outline (subtasks). Filed/completed items stay in place until Clean Up. |
-| Projects | Folders → projects → actions outline; sidebar tree; Remaining/Available/Everything filter. |
+| Projects | Folders → projects → actions outline; sidebar tree (context menu: Complete Project / Mark Active, Status, Rename, Convert to Action; a project completed there stays listed until Clean Up or a view change); Remaining/Available/Everything filter. |
 | Tags | Actions per tag; sidebar tag tree. |
 | Forecast | Past (overdue), a day strip (12 days) and Future; calendar events; **Today** also lists available flagged actions. Order: flagged & available, other available, not yet available. The selected day follows "today" unless the user picks another day. |
 | Flagged | Remaining, unblocked flagged actions grouped by project. |
