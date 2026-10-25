@@ -57,6 +57,10 @@ What went wrong (or nearly did), why, and the rule we keep now. Newest themes fi
   changing MCP behaviour, tell sessions to reconnect; until then their writes use the old code (e.g. `#127` parsed
   as a tag after the parser fix shipped).
 
+- **A popover anchored to a text field takes that field's focus on iPad** — you got the list or the keyboard, never
+  both, so typing didn't filter. Put the search field inside the popover with the list. `arrowEdge: .top` opens it
+  below the anchor, away from the keyboard.
+
 ## Testing practice
 
 - **The debug harness on a database copy is the main test bench**: render steps to PNG, post real events
@@ -69,6 +73,8 @@ What went wrong (or nearly did), why, and the rule we keep now. Newest themes fi
   in the permanent harness (keep them temporary) — they could run against a real database.
 - **A control experiment proves a fix.** "0 px movement" meant nothing until the same test with the fix disabled
   showed −32 px.
+- **iOS flows can be checked on a simulator without tapping**: `TASKER_DEBUG_ACTION=<hook>` via
+  `SIMCTL_CHILD_*` env vars on `simctl launch`, then `simctl io … screenshot`.
 - **macOS has no `timeout`**; use a background run + polling + `pkill`.
 - **Sound/voice can't be verified by ear here** — say so; test the logic (state, background playback, file
   transcription with `say`-generated audio).

@@ -31,6 +31,7 @@ struct TaskerIOSApp: App {
         // iPad with a keyboard: the same Organize menu and shortcuts as on the Mac (hold ⌘ to see them).
         .commands {
             CommandMenu("Organize") { OrganizeMenuItems(includeCleanUp: true).environment(AppModel.shared) }
+            CommandGroup(before: .help) { if DeveloperBuild.isDeveloper { Button("Suggest an Improvement…") { AppModel.shared.suggestImprovement() } } }
         }
         .backgroundTask(.appRefresh(IOSAppDelegate.refreshID)) {
             await IOSAppDelegate.scheduleRefresh()
@@ -43,7 +44,7 @@ final class IOSAppDelegate: NSObject, UIApplicationDelegate {
     static let refreshID = "com.romadinov.tasker.refresh"
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
-        MainActor.assumeIsolated { AppModel.shared.start(); _ = PomodoroTimer.shared }
+        MainActor.assumeIsolated { AppModel.shared.start(); _ = PomodoroTimer.shared; if DeveloperBuild.isDeveloper { CrashReporter.shared.start() } }
         application.registerForRemoteNotifications()
         Task { await Self.scheduleRefresh() }
         return true

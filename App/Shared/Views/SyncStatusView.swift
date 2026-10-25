@@ -108,6 +108,11 @@ struct SettingsView: View {
             Section("Sync") {
                 Button("Sync status…") { model.showSyncStatus = true }
             }
+            if DeveloperBuild.isDeveloper {
+                Section("Feedback") {
+                    Button("Suggest an Improvement…") { model.suggestImprovement() }
+                }
+            }
             CalendarSettingsSection()
             PomodoroSettingsSection()
             Section("Dates") {

@@ -29,6 +29,7 @@ struct RootView: View {
         .sheet(item: $model.editingPerspective) { p in
             PerspectiveEditor(perspective: p)
         }
+        .sheet(item: $model.improvementNote) { req in ImprovementNoteView(request: req) }
         .sheet(isPresented: $model.showSyncStatus) {
             NavigationStack { SyncStatusView() }
                 #if os(macOS)
@@ -187,6 +188,11 @@ struct SidebarView: View {
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 NavigationLink { SettingsView() } label: { Image(systemName: "gearshape") }
+            }
+            if DeveloperBuild.isDeveloper {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button { model.suggestImprovement() } label: { Image(systemName: "lightbulb") }
+                }
             }
         }
         #endif

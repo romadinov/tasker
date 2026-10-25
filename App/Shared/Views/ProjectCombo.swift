@@ -115,14 +115,17 @@ struct ProjectComboEditor: View {
         #if os(macOS)
         ComboTextField(state: state, placeholder: "Project", onCommit: { item, _ in commit(item); return false }, onCancel: onDone)
         #else
-        TextField("Project", text: Bindable(state).query)
-            .textFieldStyle(.roundedBorder)
-            .onSubmit { commit(state.current) }
-            .popover(isPresented: $showList, arrowEdge: .bottom) {
-                ComboList(state: state, onPick: commit)
-                    .frame(width: 380)
-                    .presentationCompactAdaptation(.popover)
-            }
+        let s = model.snapshot
+        let name = s.info[task.id]?.projectID.flatMap { s.tasks[$0]?.title }
+        Button { showList = true } label: {
+            Label(name ?? "Project", systemImage: "circle.grid.2x2").font(.caption).lineLimit(1)
+        }
+        .buttonStyle(.bordered)
+        .popover(isPresented: $showList, arrowEdge: .top) {
+            ComboSearchPopover(state: state, placeholder: "Project", onPick: commit, onSubmitEmpty: { commit(state.current) })
+                .presentationCompactAdaptation(.popover)
+        }
+        .onChange(of: showList) { _, open in if !open && model.inlineField?.id == task.id && model.inlineField?.field == .project { onDone() } }
         #endif
     }
 
@@ -147,6 +150,8 @@ struct InlineTagsField: View {
     @State private var state: ComboState
     /// Tags when the field opened: Escape puts them back.
     @State private var original: [String]
+    /// iOS: the search popover (opens with the field, as the Mac field takes focus).
+    @State private var showPicker = true
 
     init(task: TaskItem) {
         self.task = task
@@ -180,18 +185,15 @@ struct InlineTagsField: View {
         }, onEndEditing: { if model.inlineField?.id == task.id && model.inlineField?.field == .tags { model.inlineField = nil } })
         .frame(minWidth: 140, maxWidth: 220)
         #else
-        TextField("Add tag", text: Bindable(state).query)
-            .textFieldStyle(.roundedBorder)
-            .frame(maxWidth: 200)
-            .onSubmit {
-                if let item = state.current, !state.query.isEmpty { add(item); state.query = "" }
-                else { model.inlineField = nil }
-            }
-            .popover(isPresented: .constant(!state.query.isEmpty), arrowEdge: .bottom) {
-                ComboList(state: state, onPick: { add($0); state.query = "" })
-                    .frame(width: 320)
+        Button { showPicker = true } label: { Label("Add tag", systemImage: "plus").font(.caption) }
+            .buttonStyle(.bordered)
+            .popover(isPresented: $showPicker, arrowEdge: .top) {
+                // Picking adds the tag and stays open for another; Return on an empty field closes.
+                ComboSearchPopover(state: state, placeholder: "Add tag", onPick: { add($0); state.query = "" },
+                                   onSubmitEmpty: { showPicker = false })
                     .presentationCompactAdaptation(.popover)
             }
+            .onChange(of: showPicker) { _, open in if !open && model.inlineField?.id == task.id && model.inlineField?.field == .tags { model.inlineField = nil } }
         #endif
     }
 
@@ -221,10 +223,52 @@ struct InlineTagsField: View {
     }
 }
 
+#if os(iOS)
+/// iPad/iPhone picker: the search field lives inside the popover with the list. A popover anchored to an
+/// outside text field takes focus from it, so you got either the list or the keyboard (unfiltered), never both.
+struct ComboSearchPopover: View {
+    @Bindable var state: ComboState
+    let placeholder: String
+    let onPick: (ComboItem) -> Void
+    /// Return with nothing typed.
+    let onSubmitEmpty: () -> Void
+    @FocusState private var focused: Bool
+
+    var body: some View {
+        VStack(spacing: 0) {
+            TextField(placeholder, text: $state.query)
+                .textFieldStyle(.roundedBorder)
+                .autocorrectionDisabled()
+                .textInputAutocapitalization(.never)
+                .submitLabel(.done)
+                .focused($focused)
+                .onSubmit {
+                    if !state.query.trimmingCharacters(in: .whitespaces).isEmpty, let item = state.current { onPick(item) }
+                    else { onSubmitEmpty() }
+                    focused = true
+                }
+                .onKeyPress(.downArrow) { state.move(1); return .handled }
+                .onKeyPress(.upArrow) { state.move(-1); return .handled }
+                .padding(10)
+            Divider()
+            ComboList(state: state, onPick: onPick)
+        }
+        .frame(width: 380, height: 300)
+        // Focus once the popover is on screen; setting it during presentation is ignored.
+        .task { try? await Task.sleep(for: .milliseconds(150)); focused = true }
+    }
+}
+#endif
+
 /// The dropdown list (shared by the Mac panel and the iPad popover).
 struct ComboList: View {
     @Bindable var state: ComboState
     let onPick: (ComboItem) -> Void
+    #if os(iOS)
+    private let rowPadding: CGFloat = 8
+    #else
+    private let rowPadding: CGFloat = 3
+    #endif
 
     var body: some View {
         ScrollViewReader { proxy in
@@ -236,7 +280,7 @@ struct ComboList: View {
                             Text(highlighted(item, selected: selected))
                                 .lineLimit(1)
                                 .frame(maxWidth: .infinity, alignment: .leading)
-                                .padding(.horizontal, 8).padding(.vertical, 3)
+                                .padding(.horizontal, 8).padding(.vertical, rowPadding)
                                 .background(selected ? Color.accentColor : .clear)
                                 .contentShape(Rectangle())
                         }
@@ -244,13 +288,17 @@ struct ComboList: View {
                         .id(i)
                     }
                     if state.items.isEmpty {
-                        Text("No matching projects").foregroundStyle(.secondary).padding(8)
+                        Text(state.kind == .tag ? "No matching tags" : "No matching projects").foregroundStyle(.secondary).padding(8)
                     }
                 }
             }
             .onChange(of: state.highlighted) { _, i in proxy.scrollTo(i) }
         }
+        #if os(iOS)
+        .font(.body)
+        #else
         .font(.system(size: 12))
+        #endif
     }
 
     func highlighted(_ item: ComboItem, selected: Bool) -> AttributedString {

@@ -113,6 +113,8 @@ final class AppModel {
     /// Set to bring a row into view (minimal scroll); used when moving to the next task.
     var scrollToRow: String?
     var projectEditingSeed = ""
+    /// "Suggest an Improvement" form (Feedback.swift).
+    var improvementNote: ImprovementNoteRequest?
     var recentlyCompleted: Set<String> = []
     /// Items filed out of the Inbox this session; they stay visible there until Clean Up.
     var inboxKept: Set<String> = []

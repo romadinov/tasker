@@ -50,6 +50,12 @@ struct PerspectiveRail: View {
             .buttonStyle(.plain)
             .help("Sync: " + SyncBadge().title(model.syncStatus))
             #if os(iOS)
+            if DeveloperBuild.isDeveloper {
+                Button { model.suggestImprovement() } label: {
+                    Image(systemName: "lightbulb").font(.system(size: 16)).foregroundStyle(.secondary).frame(width: 60, height: 36)
+                }
+                .buttonStyle(.plain)
+            }
             NavigationLink { SettingsView() } label: {
                 Image(systemName: "gearshape").font(.system(size: 16)).foregroundStyle(.secondary).frame(width: 60, height: 36)
             }

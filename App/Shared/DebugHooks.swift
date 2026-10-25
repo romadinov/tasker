@@ -26,6 +26,28 @@ enum DebugHooks {
                 }
                 model.sidebar = .nearby
                 NearbyModel.shared.startIfNeeded()
+            case "picker":
+                // Project picker on a selected Inbox row, seeded with TASKER_DEBUG_QUERY (iPad popover check).
+                for path in ["Работа : Mésange Bleue", "Работа : Scriptorium", "Дом : Ремонт", "Personal : Health"] where model.snapshot.project(atPath: path) == nil {
+                    _ = model.createProject(named: path)
+                }
+                let id = IDs.make()
+                model.perform("Debug") { _ = $0.createTask(NewTask(title: "Picker test"), id: id) }
+                model.sidebar = .inbox
+                model.selection = [id]
+                model.projectEditingSeed = ProcessInfo.processInfo.environment["TASKER_DEBUG_QUERY"] ?? ""
+                model.inlineField = .init(id: id, field: .project)
+            case "feedback":
+                // Writes a note to TASKER_FEEDBACK_DIR and reports whether the iCloud container resolves.
+                let shot = AppModel.captureWindow()?.pngBytes
+                Task.detached {
+                    let container = FileManager.default.url(forUbiquityContainerIdentifier: Feedback.containerID)
+                    NSLog("FEEDBACK container: %@", container?.path ?? "nil")
+                    do {
+                        try ImprovementNotes.add("Test note (line one)\nsecond line", where: "Inbox, action “x”", screenshot: shot)
+                        NSLog("FEEDBACK wrote to %@", Feedback.documents().path)
+                    } catch { NSLog("FEEDBACK error %@", "\(error)") }
+                }
             default: break
             }
         }

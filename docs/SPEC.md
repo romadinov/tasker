@@ -172,6 +172,18 @@ data change, local or synced. Companion apps debounce it, ignore echoes after th
 - **Scriptorium** (`~/Dev/reader`): "Send to Uberdoer" via `uberdoer://add`; ⌃⌘C Copy Link used by the clipper.
 - Any Claude session may ask to file reminders for the user; they're added via MCP.
 
+### 3.5 Improvement notes and crash reports (agent feedback loop)
+
+Shared convention: `~/Dev/agent-feedback` (Uberdoer is registered there as `uberdoer`). The iCloud container
+`iCloud.com.romadinov.tasker` also serves iCloud Drive (CloudDocuments; folder "Uberdoer"); in its `Documents/` the app
+appends `Improvement notes.md` (TaskPaper: `\t- text @date @where(view, selected item) @build @device @screenshot`),
+screenshots in `Improvement notes/`, and MetricKit payloads in `Crash reports/*.json`. The app never edits these after
+writing; the tool owns `Improvement notes status.md` and `.handled.json`. "Suggest an Improvement…" lives in the Help
+menu (Mac, iPad keyboard), the rail lightbulb (iPad), the sidebar toolbar (iPhone) and Settings. Only
+development-signed builds (`DeveloperBuild.isDeveloper`: DEBUG or get-task-allow) show it or save crash reports.
+Handling: `swift ~/Dev/agent-feedback/feedback.swift notes uberdoer` / `crashes uberdoer`, fix, ship, then record.
+`TASKER_DEBUG_ACTION=feedback TASKER_FEEDBACK_DIR=<dir>` writes a test note elsewhere (DEBUG).
+
 ## 4. Builds and install
 
 - Mac: `scripts/install-mac.sh` → optimised (`-O`, whole-module) Debug-config build → `/Applications/Uberdoer.app`
@@ -180,4 +192,6 @@ data change, local or synced. Companion apps debounce it, ignore echoes after th
 - Debug harness (`App/macOS/DebugSnapshots.swift`, DEBUG only, env-driven): `TASKER_SNAPSHOT_DIR` (render each step to
   PNG, with synthetic clicks/keys), `TASKER_PERF_TEST`, `TASKER_JUMP_TEST`, `TASKER_LINK_TEST=<url>`,
   `TASKER_TICK_TEST`, `TASKER_WHISPER_TEST=a.wav,…`; always with `TASKER_DB=<copy> TASKER_NO_SYNC=1`.
+- iCloud only re-reads `NSUbiquitousContainers` (the iCloud Drive folder) when `CURRENT_PROJECT_VERSION` changes; bump
+  it in `project.yml` when that changes. iOS builds that add a capability need `-allowProvisioningUpdates`.
 - Core tests: `cd Packages/TaskerCore && swift test` (58 tests incl. randomized 3-replica convergence).

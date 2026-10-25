@@ -40,6 +40,7 @@ final class MacAppDelegate: NSObject, NSApplicationDelegate {
             AppModel.shared.start()
             HotKeys.apply()
             _ = PomodoroTimer.shared // resumes a running pomodoro, logs one that ended while quit
+            if DeveloperBuild.isDeveloper { CrashReporter.shared.start() } // crash/hang reports → iCloud container › Crash reports
             #if DEBUG
             DebugSnapshots.runIfRequested()
             #endif
@@ -179,6 +180,9 @@ struct TaskerCommands: Commands {
         }
         CommandMenu("Organize") {
             OrganizeMenuItems(includeCleanUp: true).environment(AppModel.shared)
+        }
+        CommandGroup(before: .help) {
+            if DeveloperBuild.isDeveloper { Button("Suggest an Improvement…") { model.suggestImprovement() } }
         }
         CommandGroup(after: .sidebar) {
             Button("Inbox") { model.sidebar = .inbox }.keyboardShortcut("1")
