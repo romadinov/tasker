@@ -16,4 +16,7 @@ xcodebuild -exportArchive -archivePath build/archive-mac/Uberdoer.xcarchive \
 ditto -c -k --keepParent build/release/Uberdoer.app build/release/Uberdoer.zip
 xcrun notarytool submit build/release/Uberdoer.zip --keychain-profile tasker-notary --wait
 xcrun stapler staple build/release/Uberdoer.app
-echo "Notarized: build/release/Uberdoer.app — install with: ditto build/release/Uberdoer.app /Applications/Uberdoer.app"
+# Re-zip so the download carries the stapled ticket (Gatekeeper accepts it offline).
+rm build/release/Uberdoer.zip && ditto -c -k --keepParent build/release/Uberdoer.app build/release/Uberdoer.zip
+echo "Notarized: build/release/Uberdoer.app (zip: build/release/Uberdoer.zip)"
+echo "Publish: git tag vX.Y.Z && git push origin vX.Y.Z && gh release create vX.Y.Z build/release/Uberdoer.zip --verify-tag"
