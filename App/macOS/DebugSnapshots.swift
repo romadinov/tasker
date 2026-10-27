@@ -8,6 +8,7 @@ import TaskerCore
 @MainActor
 enum DebugSnapshots {
     static func runIfRequested() {
+        if DemoRecorder.runIfRequested() { return }
         // TASKER_LINK_TEST=<url>: open a task link through the app delegate, log what got revealed.
         if let link = ProcessInfo.processInfo.environment["TASKER_LINK_TEST"], let url = URL(string: link) {
             DispatchQueue.main.asyncAfter(deadline: .now() + 2) {

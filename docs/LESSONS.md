@@ -75,6 +75,11 @@ What went wrong (or nearly did), why, and the rule we keep now. Newest themes fi
   showed −32 px.
 - **iOS flows can be checked on a simulator without tapping**: `TASKER_DEBUG_ACTION=<hook>` via
   `SIMCTL_CHILD_*` env vars on `simctl launch`, then `simctl io … screenshot`.
+- **`cacheDisplay` can't draw materials** (sidebar selection turns into a black bar, popovers get garbage behind
+  them). For video frames the demo recorder asks the window server for its own windows (CGWindowListCreateImage via
+  dlsym: unavailable to Swift, still exported, no Screen Recording permission needed for an app's own windows).
+- **Demo recordings must not show the user's data**: seed a fresh database, and hide calendar events and anything read
+  from the developer's machine (agent registry) for the recording.
 - **macOS has no `timeout`**; use a background run + polling + `pkill`.
 - **Sound/voice can't be verified by ear here** — say so; test the logic (state, background playback, file
   transcription with `say`-generated audio).

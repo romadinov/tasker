@@ -40,6 +40,10 @@ final class CalendarModel {
 
     var hasAccess: Bool { status == .fullAccess }
 
+    /// The demo recording shows no calendar events (they're the user's own); not saved.
+    @ObservationIgnored private var hiddenForDemo = false
+    func hideForDemo() { hiddenForDemo = true; revision += 1 }
+
     private init() {
         NotificationCenter.default.addObserver(forName: .EKEventStoreChanged, object: store, queue: .main) { [weak self] _ in
             Task { @MainActor in self?.reload() }
@@ -65,7 +69,7 @@ final class CalendarModel {
 
     func events(from start: Date, to end: Date) -> [Event] {
         _ = revision
-        guard enabled, hasAccess, end > start else { return [] }
+        guard enabled, hasAccess, !hiddenForDemo, end > start else { return [] }
         let cals = store.calendars(for: .event).filter { !hiddenCalendars.contains($0.calendarIdentifier) }
         guard !cals.isEmpty else { return [] }
         let predicate = store.predicateForEvents(withStart: start, end: end, calendars: cals)

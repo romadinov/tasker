@@ -27,7 +27,7 @@ extension AppModel {
     /// Mirrors ~/Dev/agent-feedback/apps.json into the synced agent list and creates a tag for each new agent.
     /// Not undoable: it's housekeeping, not an edit.
     func syncAgentRegistry() {
-        guard DeveloperBuild.isDeveloper else { return }
+        guard DeveloperBuild.isDeveloper, ProcessInfo.processInfo.environment["TASKER_DEMO_DIR"] == nil else { return }
         let url = URL(fileURLWithPath: NSString(string: "~/Dev/agent-feedback/apps.json").expandingTildeInPath)
         guard let apps = Agents.registry(at: url), !apps.isEmpty else { return }
         guard store.transact("Agents", { $0.syncAgents(apps) }) != nil else { return }
