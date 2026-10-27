@@ -68,6 +68,10 @@ struct OFDateField: View {
     @Environment(AppModel.self) private var model
     let date: Date?
     let defaultHour: Int
+    /// Focus the text field when it appears (Quick Entry's Due popover).
+    var autofocus = false
+    /// Return or Tab in the text field: commit and move on (closes Quick Entry's Due popover).
+    var onFinish: (() -> Void)? = nil
     let set: (Date?) -> Void
     @State private var text = ""
     @State private var picking = false
@@ -80,7 +84,13 @@ struct OFDateField: View {
                     .labelsHidden()
                     .textFieldStyle(.plain)
                     .focused($focused)
-                    .onSubmit(commitText)
+                    .onSubmit { commitText(); onFinish?() }
+                    .onKeyPress(keys: [.tab]) { press in
+                        guard let onFinish, press.modifiers.isEmpty else { return .ignored }
+                        commitText()
+                        onFinish()
+                        return .handled
+                    }
                     .onChange(of: focused) { _, f in if !f { commitText() } }
                 Button { picking = true } label: { Image(systemName: "calendar") }
                     .buttonStyle(.borderless)
@@ -108,7 +118,10 @@ struct OFDateField: View {
             .padding(2)
             .background(RoundedRectangle(cornerRadius: 6).fill(Color.secondary.opacity(0.08)))
         }
-        .onAppear { text = display }
+        .onAppear {
+            text = display
+            if autofocus { DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { focused = true } }
+        }
         .onChange(of: date) { _, _ in if !focused { text = display } }
     }
 

@@ -23,6 +23,49 @@ enum DebugSnapshots {
             }
             return
         }
+        // TASKER_QE_TAB_TEST=<dir>: walk Quick Entry with Tab (title → project → tags → flag → due), a PNG per step.
+        if let dir = ProcessInfo.processInfo.environment["TASKER_QE_TAB_TEST"] {
+            func key(_ chars: String, _ code: UInt16) {
+                let target = NSApp.keyWindow ?? NSApp.windows.last { $0.isVisible && $0.className.contains("Popover") }
+                    ?? NSApp.windows.first { $0 is QuickEntryWindow }
+                for type in [NSEvent.EventType.keyDown, .keyUp] {
+                    guard let w = target, let e = NSEvent.keyEvent(with: type, location: .zero, modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime,
+                                                    windowNumber: w.windowNumber, context: nil, characters: chars, charactersIgnoringModifiers: chars,
+                                                    isARepeat: false, keyCode: code) else { continue }
+                    w.sendEvent(e)
+                }
+            }
+            func typeText(_ text: String) { for c in text { key(String(c), 0) } }
+            func shot(_ name: String) {
+                for (n, w) in NSApp.windows.enumerated() where w.isVisible && (w is QuickEntryWindow || w.className.contains("Popover") || w is DropdownPanel) {
+                    guard let view = w.contentView?.superview ?? w.contentView, let rep = view.bitmapImageRepForCachingDisplay(in: view.bounds) else { continue }
+                    view.cacheDisplay(in: view.bounds, to: rep)
+                    try? rep.representation(using: .png, properties: [:])?.write(to: URL(fileURLWithPath: dir).appendingPathComponent("\(name)-w\(n).png"))
+                }
+                let qe = NSApp.windows.first { $0 is QuickEntryWindow }
+                NSLog("TASKER-QE %@ responder=%@", name, qe?.firstResponder.map { String(describing: Swift.type(of: $0)) } ?? "-")
+            }
+            let steps: [(String, () -> Void)] = [
+                ("0-open", { NSApp.activate(ignoringOtherApps: true); QuickEntryController.shared.show() }),
+                ("1-title", { typeText("Tab test") }),
+                ("2-tab-project", { key("\t", 48) }),
+                ("3-typed-project", { typeText("inb") }),
+                ("4-tab-tags", { key("\t", 48) }),
+                ("5-typed-tag", { typeText("wait") }),
+                ("6-tab-flag", { key("\t", 48) }),
+                ("7-space", { key(" ", 49) }),
+                ("8-tab-due", { key("\t", 48) }),
+                ("9-typed-due", { typeText("tomorrow") }),
+                ("10-tab-done", { key("\t", 48) }),
+            ]
+            func run(_ i: Int) {
+                guard i < steps.count else { NSApp.terminate(nil); return }
+                steps[i].1()
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { shot(steps[i].0); run(i + 1) }
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2) { run(0) }
+            return
+        }
         // TASKER_JUMP_TEST=1: click a row below an open one and sample the clicked row's position.
         if ProcessInfo.processInfo.environment["TASKER_JUMP_TEST"] != nil {
             let model = AppModel.shared

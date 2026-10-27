@@ -8,7 +8,7 @@ struct QuickEntryForm: View {
     let capture: AppModel.Capture
     let onDone: () -> Void
 
-    enum Focus: Hashable { case title, note }
+    enum Focus: Hashable { case title, note, flag }
     enum Field: Hashable { case project, tags }
 
     @State private var title = ""
@@ -48,6 +48,12 @@ struct QuickEntryForm: View {
                         .lineLimit(1...4)
                         .focused($focus, equals: .title)
                         .onSubmit { save(keepOpen: false) }
+                        // Tab walks the fields: title → project → tags → flag → due.
+                        .onKeyPress(keys: [.tab]) { press in
+                            guard press.modifiers.isEmpty else { return .ignored }
+                            editing = .project
+                            return .handled
+                        }
                     fieldsRow(s)
                     if showMore { moreRow(s) }
                     if showNote || !note.isEmpty {
@@ -71,10 +77,6 @@ struct QuickEntryForm: View {
                         Image(systemName: "note.text").foregroundStyle(note.isEmpty ? Color.secondary.opacity(0.6) : Color.secondary)
                     }
                     .buttonStyle(.plain).help("Note")
-                    Button { flagged.toggle() } label: {
-                        Image(systemName: flagged ? "flag.fill" : "flag").foregroundStyle(flagged ? Palette.flag : Color.secondary.opacity(0.6))
-                    }
-                    .buttonStyle(.plain).help("Flag")
                     micButton
                 }
                 .padding(.top, 2)
@@ -266,7 +268,8 @@ struct QuickEntryForm: View {
                         let id = item.createName.map { model.createTag(named: $0) } ?? item.id
                         if !tagIDs.contains(id) { tagIDs.append(id) }
                     }
-                    if viaTab || item == nil { editing = nil; focus = .title; return false }
+                    if viaTab { editing = nil; focus = .flag; return false }
+                    if item == nil { editing = nil; focus = .title; return false }
                     return true
                 }
                 .frame(width: 160)
@@ -274,13 +277,17 @@ struct QuickEntryForm: View {
                 fieldButton(icon: "tag", text: tagIDs.isEmpty ? "Tags" : s.tagNames(tagIDs).joined(separator: ", "),
                             set: !tagIDs.isEmpty, tint: Palette.tag) { editing = .tags }
             }
+            flagField
             // Due
             fieldButton(icon: "calendar", text: due.map { Fmt.relative($0) } ?? "Due", set: due != nil,
                         tint: due.map { $0 < Date() ? Palette.overdue : Palette.dueSoon } ?? .secondary) { dueOpen = true }
                 .popover(isPresented: $dueOpen, arrowEdge: .bottom) {
                     VStack(alignment: .leading, spacing: 8) {
                         Text("Due").font(.headline)
-                        OFDateField(date: due, defaultHour: 17) { due = $0 }
+                        OFDateField(date: due, defaultHour: 17, autofocus: true, onFinish: {
+                            dueOpen = false
+                            DispatchQueue.main.async { focus = .title }
+                        }) { due = $0 }
                     }
                     .padding(12).frame(width: 300)
                 }
@@ -312,6 +319,33 @@ struct QuickEntryForm: View {
             .fixedSize()
         }
         .font(.callout)
+    }
+
+    /// Flag: click, or Tab to it and press Space; Tab moves on to Due.
+    var flagField: some View {
+        HStack(spacing: 3) {
+            Image(systemName: flagged ? "flag.fill" : "flag").imageScale(.small)
+            Text(flagged ? "Flagged" : "Flag").lineLimit(1)
+        }
+        .foregroundStyle(flagged ? Palette.flag : Color.secondary.opacity(0.75))
+        .contentShape(Rectangle())
+        .overlay {
+            RoundedRectangle(cornerRadius: 4).stroke(Color.accentColor.opacity(0.7), lineWidth: 2)
+                .padding(-3).opacity(focus == .flag ? 1 : 0)
+        }
+        .focusable()
+        .focusEffectDisabled()
+        .focused($focus, equals: .flag)
+        .onTapGesture { flagged.toggle() }
+        .onKeyPress(.space) { flagged.toggle(); return .handled }
+        .onKeyPress(keys: [.tab]) { press in
+            guard press.modifiers.isEmpty else { return .ignored }
+            focus = nil
+            dueOpen = true
+            return .handled
+        }
+        .onKeyPress(.return) { save(keepOpen: false); return .handled }
+        .help("Flag (Space)")
     }
 
     func fieldButton(icon: String, text: String, set: Bool, tint: Color, action: @escaping () -> Void) -> some View {

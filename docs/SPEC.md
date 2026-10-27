@@ -63,7 +63,7 @@ copy (deterministic id) and advances dates; their children stay open.
 
 | Path | Behaviour |
 |---|---|
-| ⌃⌥Space | Quick Entry panel (non-activating), OmniFocus layout. |
+| ⌃⌥Space | Quick Entry panel (non-activating), OmniFocus layout. Tab walks title → project → tags → flag (Space toggles) → due → back to the title; Return saves. |
 | ⌃⌥⌘Space / ⌃⌥⇧Space | Clip from front app (review / straight to Inbox): browser URL, Mail/Mimestream message link (subject as title), Slack message, Scriptorium passage link, selected text. Needs Accessibility. |
 | ⌃⌥V, mic, ⌘D | Speech entry (see 1.7). iPhone/iPad: mic button above "+". |
 | Services, Share menu/sheet, `uberdoer://add` | See §3. |
