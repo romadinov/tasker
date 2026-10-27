@@ -1,9 +1,34 @@
 [
- {"id": "s01_inbox", "text": "This is Uberdoer, a task manager for Mac, iPhone and iPad, built to replace OmniFocus. Everything you capture lands in the Inbox first, ready to be sorted."},
- {"id": "s02_quick", "text": "Quick Entry opens from any app with Control, Option, Space. Type the action, then press Tab to choose a project. Tab again for tags. Space flags it. One more Tab sets the due date, and words like tomorrow or Friday just work."},
- {"id": "s03_projects", "text": "Projects live in folders. Pick one to see what's left to do, and complete a whole project straight from the sidebar."},
- {"id": "s04_forecast", "text": "Forecast lays out what's due and planned, day by day, so the week ahead is clear at a glance."},
- {"id": "s05_board", "text": "The Board shows the same actions as a Kanban board, with a column for each stage of the work."},
- {"id": "s06_tags", "text": "Tags work as contexts. Choose Calls or Errands, and you see everything you can do right there."},
- {"id": "s07_outro", "text": "Every change syncs through iCloud without conflicts, even after editing offline. And because Uberdoer speaks MCP, your AI assistants can file reminders and tick off tasks for you."}
+ {
+  "id": "s01_inbox",
+  "text": "This is Uberdoer, a task manager for Mac, iPhone and iPad, built to replace OmniFocus. Everything you capture lands in the Inbox first, ready to be sorted."
+ },
+ {
+  "id": "s02_quick",
+  "text": "Quick Entry opens from any app with Control, Option, Space. Type the action, then press Tab to choose a project. Tab again for tags. Space flags it. One more Tab sets the due date, and words like tomorrow or Friday just work."
+ },
+ {
+  "id": "s03_projects",
+  "text": "Projects live in folders. Pick one to see what's left to do, and complete a whole project straight from the sidebar."
+ },
+ {
+  "id": "s04_forecast",
+  "text": "Forecast lays out what's due and planned, day by day, so the week ahead is clear at a glance."
+ },
+ {
+  "id": "s05_board",
+  "text": "The Board shows the same actions as a Kanban board. Flagged actions wait in Up next until you pull them onto the board, and you move a card from To Do to In Progress as the work goes along."
+ },
+ {
+  "id": "s06_pomodoro",
+  "text": "Pick an action and start a pomodoro. The focus timer stays at the top of every view, with pause, skip and complete close at hand, and every session counts toward your focus time in Analytics."
+ },
+ {
+  "id": "s07_tags",
+  "text": "Tags work as contexts. Choose Calls or Errands, and you see everything you can do right there."
+ },
+ {
+  "id": "s08_outro",
+  "text": "Every change syncs through iCloud without conflicts, even after editing offline. And because Uberdoer speaks MCP, your AI assistants can file reminders and tick off tasks for you."
+ }
 ]

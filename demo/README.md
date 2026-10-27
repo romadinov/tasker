@@ -17,7 +17,7 @@ S=~/.claude/skills/elevenlabs-voiceover/scripts; mkdir -p build
 for d in frames/s0*/; do id=$(basename $d)
   ffmpeg -y -f concat -safe 0 -i $d/frames.ffconcat -vf "scale=1920:-2:flags=lanczos,fps=30,format=yuv420p" -c:v libx264 -crf 18 build/$id-v.mp4
   bash $S/mux.sh build/$id-v.mp4 audio/$id.mp3 build/$id.mp4; done
-printf "file '%s'\n" $PWD/build/s0?_*[a-z].mp4 > build/list.txt
+printf "file '%s'\n" $PWD/build/s0?_*.mp4 | grep -v -- "-v.mp4'" > build/list.txt
 ffmpeg -y -f concat -safe 0 -i build/list.txt -c copy -movflags +faststart Uberdoer-demo.mp4
 ```
 

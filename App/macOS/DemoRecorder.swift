@@ -22,11 +22,35 @@ enum DemoRecorder {
             CalendarModel.shared.hideForDemo()
             AppModel.shared.syncStatus.phase = .idle
             AppModel.shared.syncStatus.lastFetch = Date()
+            // The board starts with cards in its columns.
+            let m = AppModel.shared
+            if !m.snapshot.hasStages { m.perform("Set Up Board") { $0.addDefaultStages() } }
+            for (title, stage) in [("Order the new tap", "todo"), ("Find a hotel in Alfama", "todo"), ("Set up redirects for old pages", "todo"),
+                                   ("Write homepage copy", "doing"), ("Draft goals for next quarter", "doing"),
+                                   ("Ask Maria about the analytics setup", "waiting")] {
+                if let id = m.snapshot.tasks.values.first(where: { $0.title == title })?.id { m.moveToStage([id], stage: stage, before: nil) }
+            }
+            // Some past focus sessions, so Analytics has focus time to show.
+            let focusIDs = ["Write homepage copy", "Draft goals for next quarter", "Practise for twenty minutes", "Review new design mock-ups"]
+                .compactMap { t in m.snapshot.tasks.values.first { $0.title == t }?.id }
+            m.perform("Demo focus history") { tx in
+                for day in 0..<40 where day % 7 != 5 && day % 7 != 6 {
+                    for n in 0..<(1 + (day * 7) % 3) {
+                        let at = Calendar.current.date(byAdding: .hour, value: -(day * 24 + 3 + n), to: Date())!
+                        tx.logPomodoro(focusIDs[(day + n) % focusIDs.count], at: at, minutes: 25)
+                    }
+                }
+            }
+            // The pomodoro scene saves timer state in the defaults the real app shares; put it back afterwards.
+            let savedPomodoro = UserDefaults.standard.data(forKey: "pomodoro.state")
             let savedFrame = main.frame
             main.setFrame(NSRect(x: 80, y: 120, width: 1280, height: 800), display: true)
             @MainActor func run(_ i: Int) {
                 guard i < all.count else {
                     main.setFrame(savedFrame, display: false)
+                    PomodoroTimer.shared.stop()
+                    if let savedPomodoro { UserDefaults.standard.set(savedPomodoro, forKey: "pomodoro.state") }
+                    else { UserDefaults.standard.removeObject(forKey: "pomodoro.state") }
                     NSApp.terminate(nil)
                     return
                 }
@@ -79,13 +103,24 @@ enum DemoRecorder {
             ]),
             Scene(id: "s05_board", actions: [
                 (0, { m.sidebar = .kanban; m.selection = [] }),
+                (5.5, { if let id = task("Book flights") { m.moveToStage([id], stage: "todo", before: nil) } }),
+                (8.8, { if let id = task("Set up redirects for old pages") { m.moveToStage([id], stage: "doing", before: nil) } }),
             ]),
-            Scene(id: "s06_tags", actions: [
-                (0, { m.sidebar = .tags; m.selection = [] }),
+            Scene(id: "s06_pomodoro", actions: [
+                (0, { m.sidebar = .projects; m.selection = []; if let p = project("Website relaunch") { m.projectFocus = [p] } }),
+                (0.8, select("Write homepage copy")),
+                (2.2, { if let id = task("Write homepage copy") { PomodoroTimer.shared.start(id) } }),
+                (4.6, { m.sidebar = .forecast; m.selection = [] }),
+                (7.0, { PomodoroTimer.shared.pause() }),
+                (8.3, { PomodoroTimer.shared.resume() }),
+                (9.6, { m.sidebar = .analytics }),
+            ]),
+            Scene(id: "s07_tags", actions: [
+                (0, { PomodoroTimer.shared.stop(); m.sidebar = .tags; m.selection = [] }),
                 (2.0, { if let t = tag("Calls") { m.tagFocus = [t] } }),
                 (4.2, { if let t = tag("Errands") { m.tagFocus = [t] } }),
             ]),
-            Scene(id: "s07_outro", actions: [
+            Scene(id: "s08_outro", actions: [
                 (0, { m.sidebar = .flagged; m.selection = [] }),
                 (6.5, { if let id = task("Book flights") { m.toggleComplete(id) } }),
                 (9.0, { if let id = task("Book the budget review meeting") { m.toggleComplete(id) } }),
