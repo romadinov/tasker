@@ -278,11 +278,6 @@ struct ContentColumn: View {
                 Button { addAction() } label: { Label("New Action", systemImage: "plus") }
             }
             #endif
-            #if os(iOS)
-            if sizeClass != .compact {
-                Button { model.presentQuickEntry() } label: { Label("Quick Entry", systemImage: "square.and.pencil") }
-            }
-            #endif
         }
     }
 }

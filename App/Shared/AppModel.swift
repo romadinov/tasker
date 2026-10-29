@@ -218,6 +218,17 @@ final class AppModel {
     var showSidebar = UserDefaults.standard.object(forKey: "showSidebar") as? Bool ?? true {
         didSet { UserDefaults.standard.set(showSidebar, forKey: "showSidebar") }
     }
+    /// iPad: the window is too narrow for the sidebar, the list and the inspector together, so the two
+    /// side panels take turns (opening one hides the other). Set by RootView; never saved.
+    var narrowLayout = false
+    /// Whether the perspective sidebar is on screen.
+    var sidebarShown: Bool { showSidebar && (!narrowLayout || !showInspector) }
+    func toggleInspector() {
+        showInspector.toggle()
+    }
+    func toggleSidebar() {
+        if sidebarShown { showSidebar = false } else { showSidebar = true; if narrowLayout { showInspector = false } }
+    }
     var sidebarWidth: CGFloat = CGFloat(UserDefaults.standard.object(forKey: "sidebarWidth") as? Double ?? 270) {
         didSet { UserDefaults.standard.set(Double(sidebarWidth), forKey: "sidebarWidth") }
     }

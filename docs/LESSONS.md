@@ -57,6 +57,11 @@ What went wrong (or nearly did), why, and the rule we keep now. Newest themes fi
   changing MCP behaviour, tell sessions to reconnect; until then their writes use the old code (e.g. `#127` parsed
   as a tag after the parser fix shipped).
 
+- **iPad: no NavigationSplitView for the perspective sidebar.** In portrait its sidebar slid over the list while the
+  inspector took the right third, and the toolbar only covered the middle column (Clean Up fell into the overflow). The
+  iPad now uses plain columns inside one NavigationStack whose bar spans the window; when rail + sidebar + inspector +
+  a 380 pt list don't fit, the two side panels take turns. Check iPad layouts in portrait on the simulator.
+
 - **A popover anchored to a text field takes that field's focus on iPad** — you got the list or the keyboard, never
   both, so typing didn't filter. Put the search field inside the popover with the list. `arrowEdge: .top` opens it
   below the anchor, away from the keyboard.

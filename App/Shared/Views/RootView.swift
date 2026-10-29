@@ -14,6 +14,7 @@ struct RootView: View {
     let isCompact = false
     #endif
     @State private var twoColumns = NavigationSplitViewVisibility.all
+    @State private var windowWidth: CGFloat = 0
 
     var body: some View {
         @Bindable var model = model
@@ -81,16 +82,15 @@ extension RootView {
                     NavigationStack { ContentColumn() }
                 }
                 #else
-                if (model.sidebar ?? .inbox).hasSidebarContent {
-                    NavigationSplitView(columnVisibility: $twoColumns) {
+                // iPad: plain columns like the Mac (a split view's sidebar slid over the list in portrait).
+                HStack(spacing: 0) {
+                    if (model.sidebar ?? .inbox).hasSidebarContent && model.sidebarShown {
                         PerspectiveSidebar()
-                            .navigationSplitViewColumnWidth(min: 200, ideal: 280, max: 400)
-                    } detail: {
-                        ContentColumn()
+                            .frame(width: model.sidebarWidth)
+                            .background(.background)
+                        SidebarResizeHandle()
                     }
-                } else {
-                    // iPad: no empty sidebar drawer for Inbox, Flagged, custom perspectives.
-                    NavigationStack { ContentColumn() }
+                    ContentColumn()
                 }
                 #endif
             }
@@ -114,11 +114,33 @@ extension RootView {
             }
         }
         .animation(.snappy(duration: 0.2), value: model.showInspector)
+        .animation(.snappy(duration: 0.2), value: model.sidebarShown)
+        #if os(iOS)
+        // One navigation bar across the whole window (rail, sidebar, list and inspector), holding the main
+        // toolbar; the side panels take turns when the window can't fit both next to a usable list.
+        .background(GeometryReader { g in
+            Color.clear
+                .onAppear { updateNarrow(g.size.width) }
+                .onChange(of: g.size.width) { _, w in updateNarrow(w) }
+        })
+        .onChange(of: model.sidebarWidth) { _, _ in updateNarrow(windowWidth) }
+        .onChange(of: model.inspectorWidth) { _, _ in updateNarrow(windowWidth) }
+        .embedInNavigationStack()
+        #endif
         #if os(macOS)
         .toolbar(id: "main") { MainToolbarCustomizable(model: model) }
         .background(ToolbarLabelsOn())
         #endif
     }
+
+    #if os(iOS)
+    func updateNarrow(_ width: CGFloat) {
+        windowWidth = width
+        // Rail + sidebar + inspector + a list at least 380 pt wide.
+        let narrow = 100 + model.sidebarWidth + model.inspectorWidth + 380 > width
+        if model.narrowLayout != narrow { model.narrowLayout = narrow }
+    }
+    #endif
 
     /// The sidebar column only appears for perspectives that have something to put in it.
     func syncColumns() {
@@ -266,10 +288,9 @@ struct MainToolbar: ToolbarContent {
     @ToolbarContentBuilder
     var items: some ToolbarContent {
         ToolbarItemGroup(placement: .navigation) {
-            #if os(macOS)
-            Button { model.showSidebar.toggle() } label: { Label("Sidebar", systemImage: "sidebar.left") }
+            Button { model.toggleSidebar() } label: { Label("Sidebar", systemImage: "sidebar.left") }
                 .help("Show or hide the sidebar (⌃⌘S)")
-            #endif
+                .disabled(!(model.sidebar ?? .inbox).hasSidebarContent)
             ControlGroup {
                 Button { model.goBack() } label: { Label("Back", systemImage: "chevron.left") }
                     .disabled(!model.canGoBack)
@@ -307,9 +328,20 @@ struct MainToolbar: ToolbarContent {
             }
             Button { model.cleanUp() } label: { Label("Clean Up", systemImage: "wand.and.sparkles") }
                 .help("Clean Up (⌘K)")
-            Button { model.showInspector.toggle() } label: { Label("Inspect", systemImage: "info.circle") }
+            Button { model.toggleInspector() } label: { Label("Inspect", systemImage: "info.circle") }
                 .help("Inspector (⌥⌘I)")
         }
+    }
+}
+
+extension View {
+    /// iPad: the root of one NavigationStack, so its bar spans every column. (Mac: unchanged.)
+    @ViewBuilder func embedInNavigationStack() -> some View {
+        #if os(iOS)
+        NavigationStack { self }
+        #else
+        self
+        #endif
     }
 }
 
@@ -354,7 +386,6 @@ struct InspectorResizeHandle: View {
     }
 }
 
-#if os(macOS)
 /// Drag to resize the perspective sidebar.
 struct SidebarResizeHandle: View {
     @Environment(AppModel.self) private var model
@@ -364,7 +395,9 @@ struct SidebarResizeHandle: View {
             .fill(Color.secondary.opacity(0.18))
             .frame(width: 1)
             .overlay(Color.clear.frame(width: 8).contentShape(Rectangle())
+                #if os(macOS)
                 .onHover { inside in if inside { NSCursor.resizeLeftRight.push() } else { NSCursor.pop() } }
+                #endif
                 .gesture(DragGesture(minimumDistance: 1)
                     .onChanged { v in
                         if start == nil { start = model.sidebarWidth }
@@ -374,6 +407,7 @@ struct SidebarResizeHandle: View {
     }
 }
 
+#if os(macOS)
 /// Native "Icon and Text" toolbar. Set once when the window appears; with no
 /// container swaps underneath, SwiftUI's toolbar updates are stable.
 struct ToolbarLabelsOn: NSViewRepresentable {

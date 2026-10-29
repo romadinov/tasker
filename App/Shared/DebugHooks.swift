@@ -37,6 +37,16 @@ enum DebugHooks {
                 model.selection = [id]
                 model.projectEditingSeed = ProcessInfo.processInfo.environment["TASKER_DEBUG_QUERY"] ?? ""
                 model.inlineField = .init(id: id, field: .project)
+            case "view":
+                // TASKER_DEBUG_SIDEBAR=forecast|projects|tags…; TASKER_DEBUG_SELECT=<task title> opens it in the inspector.
+                let items: [String: SidebarItem] = ["inbox": .inbox, "forecast": .forecast, "projects": .projects, "tags": .tags,
+                                                   "flagged": .flagged, "board": .kanban, "review": .review]
+                model.sidebar = items[ProcessInfo.processInfo.environment["TASKER_DEBUG_SIDEBAR"] ?? ""] ?? .inbox
+                if let title = ProcessInfo.processInfo.environment["TASKER_DEBUG_SELECT"],
+                   let t = model.snapshot.tasks.values.first(where: { $0.title == title }) {
+                    model.selection = [t.id]
+                    model.showInspector = ProcessInfo.processInfo.environment["TASKER_DEBUG_INSPECTOR"] != "0"
+                }
             case "feedback":
                 // Writes a note to TASKER_FEEDBACK_DIR and reports whether the iCloud container resolves.
                 let shot = AppModel.captureWindow()?.pngBytes
