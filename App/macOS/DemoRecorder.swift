@@ -33,14 +33,14 @@ enum DemoRecorder {
             // Some past focus sessions, so Analytics has focus time to show.
             let focusIDs = ["Write homepage copy", "Draft goals for next quarter", "Practise for twenty minutes", "Review new design mock-ups"]
                 .compactMap { t in m.snapshot.tasks.values.first { $0.title == t }?.id }
-            m.perform("Demo focus history") { tx in
+            if !focusIDs.isEmpty { m.perform("Demo focus history") { tx in
                 for day in 0..<40 where day % 7 != 5 && day % 7 != 6 {
                     for n in 0..<(1 + (day * 7) % 3) {
                         let at = Calendar.current.date(byAdding: .hour, value: -(day * 24 + 3 + n), to: Date())!
                         tx.logPomodoro(focusIDs[(day + n) % focusIDs.count], at: at, minutes: 25)
                     }
                 }
-            }
+            } }
             // The pomodoro scene saves timer state in the defaults the real app shares; put it back afterwards.
             let savedPomodoro = UserDefaults.standard.data(forKey: "pomodoro.state")
             let savedFrame = main.frame

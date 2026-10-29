@@ -49,6 +49,7 @@ struct AnalyticsView: View {
                         }
                     }
                     .chartForegroundStyleScale(["Completed": Color.green, "Added": Color.blue.opacity(0.55)])
+                    .weekdayAxis(range == .week)
                     .frame(height: 200)
                 }
 
@@ -85,6 +86,7 @@ struct AnalyticsView: View {
                             Chart(a.focus) { b in
                                 BarMark(x: .value("Period", b.start, unit: range.unit), y: .value("Minutes", b.completed)).foregroundStyle(.red.opacity(0.7))
                             }
+                            .weekdayAxis(range == .week)
                             .frame(height: 150)
                         }
                         Card("Focus by project") { RankList(rows: a.focusByProject, tint: .red) }
@@ -136,14 +138,25 @@ struct AnalyticsView: View {
     }
 }
 
+extension View {
+    /// One label per day (Mon 27, Tue 28 …) when the chart shows a single week.
+    @ViewBuilder func weekdayAxis(_ on: Bool) -> some View {
+        if on {
+            chartXAxis { AxisMarks(values: .stride(by: .day)) { _ in AxisValueLabel(format: .dateTime.weekday(.abbreviated).day(), centered: true) } }
+        } else {
+            self
+        }
+    }
+}
+
 enum AnalyticsRange: String, CaseIterable, Identifiable {
-    case month, quarter, half, year
+    case week, month, quarter, half, year
     var id: String { rawValue }
-    var label: String { switch self { case .month: "4 weeks"; case .quarter: "3 months"; case .half: "6 months"; case .year: "1 year" } }
-    var shortLabel: String { switch self { case .month: "4 wk"; case .quarter: "3 mo"; case .half: "6 mo"; case .year: "1 yr" } }
-    var days: Int { switch self { case .month: 28; case .quarter: 91; case .half: 182; case .year: 365 } }
-    var unit: Calendar.Component { self == .month ? .day : (self == .year ? .month : .weekOfYear) }
-    var bucketName: String { self == .month ? "day" : (self == .year ? "month" : "week") }
+    var label: String { switch self { case .week: "1 week"; case .month: "4 weeks"; case .quarter: "3 months"; case .half: "6 months"; case .year: "1 year" } }
+    var shortLabel: String { switch self { case .week: "1 wk"; case .month: "4 wk"; case .quarter: "3 mo"; case .half: "6 mo"; case .year: "1 yr" } }
+    var days: Int { switch self { case .week: 7; case .month: 28; case .quarter: 91; case .half: 182; case .year: 365 } }
+    var unit: Calendar.Component { self == .week || self == .month ? .day : (self == .year ? .month : .weekOfYear) }
+    var bucketName: String { self == .week || self == .month ? "day" : (self == .year ? "month" : "week") }
 }
 
 struct Analytics {

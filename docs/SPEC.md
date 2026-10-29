@@ -24,7 +24,7 @@ A GTD task manager for Mac, iPhone and iPad that replaces OmniFocus for one user
 | Review | Projects whose review is due; Mark Reviewed advances. |
 | Nearby | Actions whose tags have locations that apply here (place kinds via Apple Maps, or a fixed location). |
 | Board | Kanban: one column per user-defined stage + "Up next" (flagged available actions not on the board). |
-| Analytics | Throughput, added vs done, open-actions trend, lead time, weekdays, top projects/tags, focus time, upcoming load, stalled projects. |
+| Analytics | Throughput, added vs done, open-actions trend, lead time, weekdays, top projects/tags, focus time, upcoming load, stalled projects; ranges 1 week (per day, weekday labels), 4 weeks, 3 months, 6 months, 1 year. |
 | Custom perspectives | OmniFocus `archivedFilterRules` dialect, evaluated by `PerspectiveEngine`. |
 
 Choosing a view clears the search box (a search otherwise replaces the view's content).
