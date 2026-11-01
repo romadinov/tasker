@@ -245,7 +245,13 @@ struct QuickEntryForm: View {
 
     @ViewBuilder
     func fieldsRow(_ s: Snapshot) -> some View {
-        HStack(spacing: 10) {
+        #if os(iOS)
+        // The phone is too narrow for Project · Tags · Flag · Due · Repeat on one line: wrap instead of truncating.
+        let layout = AnyLayout(FlowRow(spacing: 10))
+        #else
+        let layout = AnyLayout(HStackLayout(spacing: 10))
+        #endif
+        layout {
             // Project
             if editing == .project {
                 comboField(kind: .project, placeholder: "Project") { item, viaTab in

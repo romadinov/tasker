@@ -47,6 +47,11 @@ enum DebugHooks {
                     model.selection = [t.id]
                     model.showInspector = ProcessInfo.processInfo.environment["TASKER_DEBUG_INSPECTOR"] != "0"
                 }
+                // TASKER_DEBUG_ADD_TO=<project title>: "New Action in Project" on that project.
+                if let title = ProcessInfo.processInfo.environment["TASKER_DEBUG_ADD_TO"],
+                   let p = model.snapshot.tasks.values.first(where: { $0.isProject && $0.title == title }) {
+                    model.addAction(inProject: p.id)
+                }
             case "feedback":
                 // Writes a note to TASKER_FEEDBACK_DIR and reports whether the iCloud container resolves.
                 let shot = AppModel.captureWindow()?.pngBytes

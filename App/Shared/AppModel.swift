@@ -380,6 +380,16 @@ final class AppModel {
 
     /// Opens a task link: reveals and selects the task.
     /// Opens a task link: reveals and selects the task. False if it isn't here (deleted, or not synced yet).
+    /// "New Action in Project" / swipe "Add Action" on a project row: Quick Entry with the project filled in
+    /// on iPhone; on the Mac and iPad an inline new row at the top of the project.
+    func addAction(inProject id: String) {
+        #if os(iOS)
+        if UIDevice.current.userInterfaceIdiom == .phone { presentQuickEntry(projectID: id); return }
+        #endif
+        selection = [id]
+        newTask()
+    }
+
     @discardableResult
     func openTaskLink(_ id: String) -> Bool {
         guard snapshot.tasks[id] != nil else {
@@ -967,11 +977,15 @@ final class AppModel {
 
     /// Opens Quick Entry pre-filled for the current context (used for "+" on compact screens,
     /// where inline row editing would fight with navigation).
-    func presentQuickEntry(listen: Bool = false) {
+    func presentQuickEntry(listen: Bool = false, projectID: String? = nil) {
         var c = Capture()
         c.listen = listen
-        if let s = selection.first, selection.count == 1, let t = snapshot.tasks[s] {
+        if let projectID {
+            c.projectID = projectID
+        } else if let s = selection.first, selection.count == 1, let t = snapshot.tasks[s] {
             c.projectID = t.isProject ? s : snapshot.info[s]?.projectID
+        } else if sidebar == .projects, projectFocus.count == 1, let p = projectFocus.first, snapshot.tasks[p]?.isProject == true {
+            c.projectID = p
         }
         if sidebar == .flagged { c.flagged = true }
         if sidebar == .forecast { c.dueDate = Calendar.current.date(bySettingHour: 17, minute: 0, second: 0, of: forecastDay) }

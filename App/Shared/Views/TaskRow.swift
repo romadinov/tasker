@@ -74,6 +74,8 @@ struct TaskRow: View {
             .swipeActions(edge: .leading, allowsFullSwipe: true) {
                 if !t.isProject {
                     Button { model.toggleComplete(t.id) } label: { Label("Complete", systemImage: "checkmark") }.tint(.green)
+                } else {
+                    Button { model.addAction(inProject: t.id) } label: { Label("Add Action", systemImage: "plus") }.tint(.blue)
                 }
             }
             .swipeActions(edge: .trailing) {

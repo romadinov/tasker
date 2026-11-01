@@ -274,7 +274,8 @@ struct ContentColumn: View {
             }
             #if os(iOS)
             if sizeClass == .compact {
-                Button { model.cleanUp() } label: { Label("Clean Up", systemImage: "wand.and.sparkles") }
+                // Words, not the wand icon alone: nobody recognised it as Clean Up.
+                Button { model.cleanUp() } label: { Text("Clean Up") }
                 Button { addAction() } label: { Label("New Action", systemImage: "plus") }
             }
             #endif
@@ -391,6 +392,7 @@ struct ItemContextMenu: View {
                 }
             }
             if ids.count == 1, let p = tasks.first, p.isProject {
+                Button { model.addAction(inProject: p.id) } label: { Label("New Action in Project", systemImage: "plus") }
                 Button("Convert to Action") { model.convertToAction(p.id) }
             }
             if tasks.allSatisfy(\.isProject) {
