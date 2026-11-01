@@ -43,6 +43,11 @@ What went wrong (or nearly did), why, and the rule we keep now. Newest themes fi
   Use static previews.
 - **Fix layout jumps during layout, not after.** Timer-based scroll corrections were visible; observing the table's
   frame changes corrects before the window draws. Measure jumps by sampling a row's position every 15 ms.
+- **Unreproducible list jumps get a recorder, not a guess.** Completing the last Inbox row while scrolled to the bottom
+  jumped the list for the user twice, but never on a database copy with sync off. The Mac app now logs every jump over
+  100 pt that no scroll caused, with what last replaced the snapshot, to `~/Library/Logs/Uberdoer/list-jumps.log`.
+  (Also: the List's total height is estimated for rows not yet shown; scroll with `scrollRowToVisible(last)` to reach
+  the true end in tests.)
 - **List key handlers see keys from text fields inside rows** (`onKeyPress(.space)` completed a task while typing a
   project). Guard on "is any field editing / is the first responder an NSText".
 - **Use the list's own double-click** (`contextMenu(forSelectionType:primaryAction:)`) instead of tap gestures on text:

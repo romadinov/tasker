@@ -55,6 +55,9 @@ final class AppModel {
 
     let store: Store
     let sync: CloudSync?
+    /// What last replaced the snapshot, and when (the list-jump log records it).
+    @ObservationIgnored var lastChange: (cause: String, at: Date) = ("launch", Date())
+
     private(set) var snapshot: Snapshot {
         didSet { if snapshot.version != oldValue.version { announceChange() } }
     }
@@ -282,6 +285,7 @@ final class AppModel {
         observeExternalChanges()
         timer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
             Task { @MainActor in
+                self?.lastChange = ("minute refresh", Date())
                 self?.snapshot = self?.store.snapshot() ?? .empty
             }
         }
@@ -310,6 +314,7 @@ final class AppModel {
         DispatchQueue.main.async { [weak self] in
             guard let self else { return }
             self.refreshScheduled = false
+            self.lastChange = ("store changed (sync or companion app)", Date())
             self.snapshot = self.store.snapshot()
         }
     }
@@ -427,11 +432,12 @@ final class AppModel {
     }
 
     /// Re-reads the store after something wrote to it directly (e.g. the OmniFocus import).
-    func reloadSnapshot() { snapshot = store.snapshot() }
+    func reloadSnapshot() { lastChange = ("reload", Date()); snapshot = store.snapshot() }
 
     @discardableResult
     func perform(_ name: String, _ body: (inout Tx) -> Void) -> Bool {
         guard let record = store.transact(name, body) else { return false }
+        lastChange = ("edit: \(name)", Date())
         localEditPending = true
         snapshot = store.snapshot()
         registerUndo(record)
@@ -713,6 +719,7 @@ final class AppModel {
         inboxAnchor = [:]
         inboxIndex = [:]
         resetKeptRows()
+        lastChange = ("Clean Up", Date())
         snapshot = store.snapshot()
     }
 

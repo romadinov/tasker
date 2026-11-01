@@ -83,6 +83,7 @@ struct ContentColumn: View {
             }
             #if os(macOS)
             .listStyle(.inset(alternatesRowBackgrounds: false))
+            .background(ListJumpProbe())
             .onDeleteCommand { model.deleteItems(Array(model.selection)) }
             // Bare keys: Space completes, F flags.
             .onKeyPress(.space) {
