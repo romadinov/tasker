@@ -1079,7 +1079,7 @@ final class AppModel {
     // MARK: Keep edited rows in place (all views, like the Inbox)
 
     /// Identifies "the same screen": changing any of these is navigating away, which drops kept rows.
-    private var viewKey: String {
+    var viewKey: String {
         let d = forecastDay.timeIntervalSinceReferenceDate
         return "\(String(describing: sidebar))|\(projectFocus.sorted())|\(tagFocus.sorted())|\(focusIDs.sorted())|\(searchText)|\(d)|\(filter)|\(tagFilter)"
     }

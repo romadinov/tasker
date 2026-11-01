@@ -43,11 +43,13 @@ What went wrong (or nearly did), why, and the rule we keep now. Newest themes fi
   Use static previews.
 - **Fix layout jumps during layout, not after.** Timer-based scroll corrections were visible; observing the table's
   frame changes corrects before the window draws. Measure jumps by sampling a row's position every 15 ms.
-- **Unreproducible list jumps get a recorder, not a guess.** Completing the last Inbox row while scrolled to the bottom
-  jumped the list for the user twice, but never on a database copy with sync off. The Mac app now logs every jump over
-  100 pt that no scroll caused, with what last replaced the snapshot, to `~/Library/Logs/Uberdoer/list-jumps.log`.
-  (Also: the List's total height is estimated for rows not yet shown; scroll with `scrollRowToVisible(last)` to reach
-  the true end in tests.)
+- **SwiftUI List on the Mac guesses heights of rows it hasn't shown** (NSTableView `rowHeight`, 24 pt vs ~36 real),
+  and every data change re-guesses: after scrolling through a long Inbox, adding or completing an item shrank the list
+  by ~1,750 pt, the view jumped, and sometimes rested past the end (empty space). The table's frame even lags its row
+  rects for a moment, so don't trust "scroll to frame end". `ListJumpLog.swift` keeps the last row in view with
+  `scrollRowToVisible` when it was visible before the change (same view only), never rests past the end, and logs any
+  other unexplained jump to `~/Library/Logs/Uberdoer/list-jumps.log`. It took the user's log to find this: reproduce by
+  scrolling through the list like a person (rows get measured as they pass), not by jumping to the end.
 - **List key handlers see keys from text fields inside rows** (`onKeyPress(.space)` completed a task while typing a
   project). Guard on "is any field editing / is the first responder an NSText".
 - **Use the list's own double-click** (`contextMenu(forSelectionType:primaryAction:)`) instead of tap gestures on text:
