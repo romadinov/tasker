@@ -17,6 +17,13 @@ the exact command), typically:
 claude mcp add --scope user uberdoer -- "/Applications/Uberdoer.app/Contents/MacOS/uberdoer-mcp"
 ```
 
+## Reminders from other Claude sessions: file them yourself
+
+When your session needs to leave the user a reminder (a command you couldn't run, a follow-up, something to check),
+call `create_task` yourself. Then call `update_task` or `complete_task` when it's done. Don't ask the Uberdoer
+development session to do it for you: its context is huge, so every relayed request costs the user a lot. Put the
+asking session's name and the exact command in the note. Never put secrets in a task.
+
 ## Concepts
 
 - **Inbox** — unfiled actions. **Projects** live in folders and are written `Folder : Project`
