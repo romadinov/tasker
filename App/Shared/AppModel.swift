@@ -581,6 +581,13 @@ final class AppModel {
         }
     }
 
+    /// Tab in a row's title: keep the title and continue the inline chain Project → Tags → Flag, in every view.
+    func tabFromTitle(_ id: String, title: String) {
+        commitInline(id, title: title, continueWithNew: false)
+        guard snapshot.tasks[id] != nil else { return } // an empty new row was discarded
+        openInline(id, .project)
+    }
+
     // MARK: Organize (OmniFocus's Organize menu)
 
     /// What Organize commands act on: the list selection, else the folders/projects/tags picked in the sidebar.

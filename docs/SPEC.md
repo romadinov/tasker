@@ -32,7 +32,7 @@ Choosing a view clears the search box (a search otherwise replaces the view's co
 ### 1.2 Rows and editing (Mac)
 
 - **Click** selects; the selected row opens its fields: Project ▾, Tags, Defer, Due, note.
-  Project → Return/Tab → Tags → Tab → Flag; Return on an empty Tags field moves to the next task (Inbox processing).
+  Title → Tab → Project (in every view) → Return/Tab → Tags → Tab → Flag; Return on an empty Tags field moves to the next task (Inbox processing).
 - **Double-click** edits the title (also folders/projects/tags anywhere via `RenamableName`).
 - **Return** on a selected row creates a new action right below it in edit mode (on a project: at its top; on a folder:
   a new project). Return while editing saves and starts the next one.

@@ -216,6 +216,7 @@ struct InlineTitleEditor: View {
                         onSubmit: { model.commitInline(task.id, title: text, continueWithNew: continueOnReturn && !text.trimmingCharacters(in: .whitespaces).isEmpty) },
                         onCancel: { model.commitInline(task.id, title: text, continueWithNew: false) },
                         onEndEditing: { if model.editingID == task.id { model.commitInline(task.id, title: text, continueWithNew: false) } },
+                        onTab: task.isProject ? nil : { model.tabFromTitle(task.id, title: text) },
                         focusKey: "title:" + task.id)
             .onAppear { text = task.title }
         #else

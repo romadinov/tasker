@@ -15,6 +15,8 @@ struct InlineTextField: NSViewRepresentable {
     var onSubmit: () -> Void
     var onCancel: () -> Void
     var onEndEditing: () -> Void
+    /// Tab: when set, ends the edit and calls this instead of moving to the next key view.
+    var onTab: (() -> Void)? = nil
     /// Fields editing the same thing share a key. SwiftUI sometimes creates the field twice; when focus
     /// moves from one copy to the other, the first must hand over quietly instead of ending the edit.
     var focusKey: String? = nil
@@ -68,6 +70,8 @@ struct InlineTextField: NSViewRepresentable {
                 finished = true; parent.onSubmit(); return true
             case #selector(NSResponder.cancelOperation(_:)):
                 finished = true; parent.onCancel(); return true
+            case #selector(NSResponder.insertTab(_:)) where parent.onTab != nil:
+                finished = true; parent.onTab?(); return true
             default:
                 return false
             }
